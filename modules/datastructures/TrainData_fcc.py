@@ -59,6 +59,44 @@ class TrainData_fcc(TrainData):
             return np.expand_dims(np.array(a.flatten(),dtype=dtype), axis=1),np.array(rowsplits, dtype='int64') 
         else:
             return np.expand_dims(np.array(a.flatten(),dtype=dtype), axis=1)
+    def interpretAllModelInputs(self, ilist, returndict=True):
+        if not returndict:
+            raise ValueError('interpretAllModelInputs: Non-dict output is DEPRECATED. PLEASE REMOVE') 
+        '''
+        input: the full list of keras inputs
+        returns: td
+         - rechit feature array
+         - t_idx
+         - t_energy
+         - t_pos
+         - t_time
+         - t_pid :             non hot-encoded pid
+         - t_spectator :       spectator score, higher: further from shower core
+         - t_fully_contained : fully contained in calorimeter, no 'scraping'
+         - t_rec_energy :      the truth-associated deposited 
+                               (and rechit calibrated) energy, including fractional assignments)
+         - t_is_unique :       an index that is 1 for exactly one hit per truth shower
+         - row_splits
+         
+        '''
+        out = {
+            'features':ilist[0],
+            'rechit_energy': ilist[0][:,0:1], #this is hacky. FIXME
+            't_idx':ilist[2],
+            't_energy':ilist[4],
+            't_pos':ilist[6],
+            't_time':ilist[8],
+            't_pid':ilist[10],
+            't_spectator':ilist[12],
+            't_fully_contained':ilist[14],
+            'row_splits':ilist[1]
+            }
+        #keep length check for compatibility
+        if len(ilist)>16:
+            out['t_rec_energy'] = ilist[16]
+        if len(ilist)>18:
+            out['t_is_unique'] = ilist[18]
+        return out
 
     def convertFromSourceFile(self, filename, weighterobjects, istraining, treename="events"):
         
