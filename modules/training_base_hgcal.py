@@ -12,7 +12,8 @@ class HGCalTraining(training_base):
         parser.add_argument("--interactive",   help="prints output to screen", default=False, action="store_true")
         
         #no reason for a lot of validation samples usually
-        super().__init__(*args, resumeSilently=True,parser=parser,splittrainandtest=0.95,**kwargs)
+        #print(len(self.train_data))
+        super().__init__(*args, resumeSilently=True,parser=parser,splittrainandtest=0.95, testrun=True, **kwargs)
         
         if not self.args.interactive:
             print('>>> redirecting the following stdout and stderr to logs in',self.outputDir)
