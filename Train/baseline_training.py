@@ -11,8 +11,6 @@ not compatible with datasets before end of Jan 2022
 '''
 import wandb
 
-wandb.init(project="hgcalml-1", tags=["debug", "small_dataset"])
-wandb.run.log_code(".")
 
 import tensorflow as tf
 
@@ -30,8 +28,19 @@ from DebugLayers import PlotCoordinates
 from model_blocks import condition_input, extent_coords_if_needed, create_outputs, re_integrate_to_full_hits
 
 from callbacks import plotClusterSummary
-
+from argparse import ArgumentParser
 from DeepJetCore.training.DeepJet_callbacks import simpleMetricsCallback
+
+
+parser = ArgumentParser('Run the training')
+#parser.add_argument("input_dataset")
+#parser.add_argument("output_dir")
+parser.add_argument("--interactive", help="prints output to screen", default=False, action="store_true")
+parser.add_argument("--run_name", "-name", help="wandb run name", default="HGCalML-1 baseline training")
+parser.add_argument("--epochs", "-e", help="wandb run name", default=500, type=int)
+parser.add_argument("--nbatch", "-b", help="batch size", default=10000, type=int)
+#parser.add_argument('inputDataCollection')
+#parser.add_argument('outputDir')
 
 #loss options:
 loss_options={
@@ -69,7 +78,8 @@ learningrate = 1e-4
 # this is the maximum number of hits (points) per batch,
 # not the number of events (samples). This is safer w.r.t. 
 # memory
-nbatch = 10000
+#args = parser.parse_args()
+
 
 #iterations of gravnet blocks
 n_neighbours=[64,64]
@@ -255,7 +265,7 @@ def gravnet_model(Inputs,
 
 
 import training_base_hgcal
-train = training_base_hgcal.HGCalTraining()
+train = training_base_hgcal.HGCalTraining(parser=parser)
 
 if not train.modelSet():
     train.setModel(gravnet_model,
@@ -303,7 +313,7 @@ simpleMetricsCallback(
 '''
 cb = [
     wandbCallback()
-    ]
+]
 
 
 '''cb += [
@@ -315,6 +325,12 @@ cb = [
     ]'''
 
 #cb=[]
+
+args = train.args
+wandb.init(project="hgcalml-1", tags=["debug", "small_dataset"], name=args.run_name)
+wandb.run.log_code(".")
+wandb.config["args"] = vars(args)
+nbatch = args.nbatch
 
 train.change_learning_rate(learningrate)
 
@@ -330,11 +346,7 @@ print("freeze BN")
 
 train.change_learning_rate(learningrate/2.)
 
-
-model, history = train.trainModel(nepochs=550,
+model, history = train.trainModel(nepochs=args.epochs,
                                   batchsize=nbatch,
                                   additional_callbacks=cb)
-    
-
-
 
