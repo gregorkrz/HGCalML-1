@@ -249,7 +249,6 @@ class LossLayerBase(LayerWithMetrics):
             a,*_ = inputs
         else:
             raise ValueError("LossLayerBase: input not understood")
-            
         if self.active:
             now = tf.timestamp() 
             
@@ -261,6 +260,9 @@ class LossLayerBase(LayerWithMetrics):
                 print(self.name,'returning zero loss',zero_loss)
                 lossval = zero_loss
             else:
+                #print(type(self), "<<<- type of self")
+                #print("INPUTS:", inputs)
+                #print("len inputs", len(inputs))
                 lossval = self.scale * self.loss(inputs)
                 
             self.maybe_print_loss(lossval,now)
@@ -2120,19 +2122,26 @@ class LLFullObjectCondensation(LossLayerBase):
     def calc_energy_correction_factor_loss(self, t_energy, t_dep_energies, 
                                            pred_energy,pred_energy_low_quantile,pred_energy_high_quantile,
                                            return_concat=False): 
-        
+        print("calc_energy_correction_factor_loss _____")
         if self.energy_loss_weight == 0.:
-            return pred_energy**2 + pred_energy_low_quantile**2 + pred_energy_high_quantile**2
+            print("self.energy_loss_weight", self.energy_loss_weight)
+            print("pred_energy.shape", pred_energy.shape, (pred_energy**2).shape)
+            el = pred_energy**2 + pred_energy_low_quantile**2 + pred_energy_high_quantile**2
+            return el, el
         
         ediff = (t_energy - pred_energy*t_dep_energies)/tf.sqrt(tf.abs(t_energy)+1e-3)
-        
+        print("1 ediff.shape", ediff.shape)
+
         ediff = tf.debugging.check_numerics(ediff, "eloss ediff")
         
         eloss = None
+        print("huber", self.huber_energy_scale)
         if self.huber_energy_scale>0:
             eloss = huber(ediff, self.huber_energy_scale)
         else:
             eloss = tf.math.log(ediff**2 + 1. + 1e-5)
+
+            print("2 eloss shape", eloss.shape)
             
         #eloss = self.softclip(eloss, 0.4) 
         t_energy = tf.clip_by_value(t_energy,0.,1e12)
@@ -2171,7 +2180,7 @@ class LLFullObjectCondensation(LossLayerBase):
         eloss=0
         
         t_energy = tf.clip_by_value(t_energy,1e-4,1e12)
-        
+
         if self.huber_energy_scale > 0:
             l = tf.abs(t_energy-pred_energy)
             sqrt_t_e = tf.sqrt(t_energy+1e-3)
@@ -2184,24 +2193,23 @@ class LLFullObjectCondensation(LossLayerBase):
         else:
             eloss = tf.math.divide_no_nan((t_energy-pred_energy)**2,(t_energy + 1e-3))
         
-        eloss = self.softclip(eloss, 0.2) 
+        eloss = self.softclip(eloss, 0.2)
         eloss = tf.debugging.check_numerics(eloss, "eloss loss")
         return eloss
 
     def calc_qmin_weight(self, hitenergy):
         if not self.energy_weighted_qmin:
             return self.q_min
-        
-    
+
     def calc_position_loss(self, t_pos, pred_pos):
         if tf.shape(pred_pos)[-1] == 2:#also has z component, but don't use it here
             t_pos = t_pos[:,0:2]
         if not self.position_loss_weight:
             return 0.*tf.reduce_sum((pred_pos-t_pos)**2,axis=-1, keepdims=True)
         #reduce risk of NaNs
-        ploss = huber(tf.sqrt(tf.reduce_sum((t_pos-pred_pos) ** 2, axis=-1, keepdims=True)/(10**2) + 1e-2), 10.) #is in cm
+        ploss = (tf.sqrt(tf.reduce_sum((t_pos-pred_pos) ** 2, axis=-1, keepdims=True)/(10**2) + 1e-2), 10.) #is in cm
         ploss = tf.debugging.check_numerics(ploss, "ploss loss")
-        return ploss #self.softclip(ploss, 3.) 
+        return ploss #self.softclip(ploss, 3.)
     
     def calc_timing_loss(self, t_time, pred_time, pred_time_unc, t_dep_energy=None):
         if  self.timing_loss_weight==0.:
@@ -2285,10 +2293,8 @@ class LLFullObjectCondensation(LossLayerBase):
             
         #reduce weight on not fully contained showers
         energy_weights = tf.where(t_fully_contained>0, energy_weights, energy_weights*0.01)
-        
-            
         #also kill any gradients for zero weight
-        energy_loss,energy_quantiles_loss = None,None        
+        energy_loss,energy_quantiles_loss = None,None
         if self.train_energy_correction:
             energy_loss,energy_quantiles_loss = self.calc_energy_correction_factor_loss(t_energy,t_rec_energy,pred_energy,pred_energy_low_quantile,pred_energy_high_quantile)
             energy_loss *= self.energy_loss_weight 
@@ -2308,7 +2314,6 @@ class LLFullObjectCondensation(LossLayerBase):
         self.add_prompt_metric(tstd,self.name+'_time_std')
         self.add_prompt_metric(tf.reduce_mean(pred_time_unc),self.name+'_time_pred_std')
         #end just for metrics
-        
         full_payload = tf.concat([energy_loss,position_loss,timing_loss,classification_loss,energy_quantiles_loss], axis=-1)
         
         if self.payload_beta_clip > 0:

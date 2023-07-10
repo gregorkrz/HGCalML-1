@@ -9,6 +9,10 @@ On flatiron:
 not compatible with datasets before end of Jan 2022
 
 '''
+import wandb
+
+wandb.init(project="hgcalml-1", tags=["debug", "small_dataset"])
+wandb.run.log_code(".")
 
 import tensorflow as tf
 
@@ -20,6 +24,7 @@ from Layers import RaggedGlobalExchange, DistanceWeightedMessagePassing, DictMod
 from Layers import RaggedGravNet, ScaledGooeyBatchNorm2 
 from Regularizers import AverageDistanceRegularizer
 from LossLayers import LLFullObjectCondensation
+from wandb_callback import wandbCallback
 from DebugLayers import PlotCoordinates
 
 from model_blocks import condition_input, extent_coords_if_needed, create_outputs, re_integrate_to_full_hits
@@ -28,11 +33,10 @@ from callbacks import plotClusterSummary
 
 from DeepJetCore.training.DeepJet_callbacks import simpleMetricsCallback
 
-
 #loss options:
 loss_options={
     # here and in the following energy = momentum
-    'energy_loss_weight': 0.,
+    'energy_loss_weight': 1.,
     'q_min': 1.,
     # addition to original OC, adds average position for clusterin
     # usually 0.5 is a reasonable value to break degeneracies 
@@ -272,45 +276,43 @@ publishpath = None #this can be an ssh reachable path (be careful: needs tokens 
 
 # establish callbacks
 
+'''
+simpleMetricsCallback(
+    output_file=train.outputDir+'/metrics.html',
+    record_frequency= record_frequency,
+    plot_frequency = plotfrequency,
+    select_metrics='FullOCLoss_*loss',
+    publish=publishpath #no additional directory here (scp cannot create one)
+    ),
 
+simpleMetricsCallback(
+    output_file=train.outputDir+'/latent_space_metrics.html',
+    record_frequency= record_frequency,
+    plot_frequency = plotfrequency,
+    select_metrics='average_distance_*',
+    publish=publishpath
+    ),
+
+
+simpleMetricsCallback(
+    output_file=train.outputDir+'/val_metrics.html',
+    call_on_epoch=True,
+    select_metrics='val_*',
+    publish=publishpath #no additional directory here (scp cannot create one)
+    ),
+'''
 cb = [
-    simpleMetricsCallback(
-        output_file=train.outputDir+'/metrics.html',
-        record_frequency= record_frequency,
-        plot_frequency = plotfrequency,
-        select_metrics='FullOCLoss_*loss',
-        publish=publishpath #no additional directory here (scp cannot create one)
-        ),
-    
-    simpleMetricsCallback(
-        output_file=train.outputDir+'/latent_space_metrics.html',
-        record_frequency= record_frequency,
-        plot_frequency = plotfrequency,
-        select_metrics='average_distance_*',
-        publish=publishpath
-        ),
-    
-    
-    simpleMetricsCallback(
-        output_file=train.outputDir+'/val_metrics.html',
-        call_on_epoch=True,
-        select_metrics='val_*',
-        publish=publishpath #no additional directory here (scp cannot create one)
-        ),
-    
-    
-    
-    
+    wandbCallback()
     ]
 
 
-cb += [
+'''cb += [
     plotClusterSummary(
         outputfile=train.outputDir + "/clustering/",
         samplefile=train.val_data.getSamplePath(train.val_data.samples[0]),
         after_n_batches=200
         )
-    ]
+    ]'''
 
 #cb=[]
 
@@ -329,7 +331,7 @@ print("freeze BN")
 train.change_learning_rate(learningrate/2.)
 
 
-model, history = train.trainModel(nepochs=121,
+model, history = train.trainModel(nepochs=550,
                                   batchsize=nbatch,
                                   additional_callbacks=cb)
     
