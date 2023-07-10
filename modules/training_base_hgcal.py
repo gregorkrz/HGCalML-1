@@ -10,10 +10,10 @@ class HGCalTraining(training_base):
         #use the DJC training base option to pass a parser
         parser = ArgumentParser('Run the training')
         parser.add_argument("--interactive", help="prints output to screen", default=False, action="store_true")
-        parser.add_argument("--wandb", help="use wandb", default=False, action="store_true")
+        #parser.add_argument("--wandb", help="use wandb", default=False, action="store_true")
         #no reason for a lot of validation samples usually
         #print(len(self.train_data))
-        super().__init__(*args, resumeSilently=True, parser=parser, splittrainandtest=0.95, testrun=True, **kwargs)
+        super().__init__(*args, resumeSilently=True, parser=parser, splittrainandtest=0.95, **kwargs)
         
         #if not self.args.interactive and not self.args.wandb:
         #    print('>>> redirecting the following stdout and stderr to logs in',self.outputDir)
