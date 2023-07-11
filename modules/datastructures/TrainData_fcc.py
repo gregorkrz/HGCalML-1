@@ -104,6 +104,7 @@ class TrainData_fcc(TrainData):
             out['t_rec_energy'] = ilist[16]
         if len(ilist)>18:
             out['t_is_unique'] = ilist[18]
+        print("InterpretAllModelInputs: output:", out)
         return out
 
 
