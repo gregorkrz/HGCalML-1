@@ -99,6 +99,7 @@ def gravnet_model(Inputs,
     ####################################################################################
 
     input_list = td.interpretAllModelInputs(Inputs,returndict=True)
+    print("Output of interpretAllModelInputs:\n", input_list)
     input_list = condition_input(input_list, no_scaling=True)
                               
     #just for info what's available, prints once
@@ -267,6 +268,13 @@ def gravnet_model(Inputs,
 import training_base_hgcal
 train = training_base_hgcal.HGCalTraining(parser=parser)
 
+args = train.args
+wandb.init(project="hgcalml-1", tags=["debug", "small_dataset"], name=args.run_name)
+wandb.run.log_code(".")
+wandb.config["args"] = vars(args)
+nbatch = args.nbatch
+
+
 if not train.modelSet():
     train.setModel(gravnet_model,
                    td=train.train_data.dataclass(),
@@ -326,11 +334,6 @@ cb = [
 
 #cb=[]
 
-args = train.args
-wandb.init(project="hgcalml-1", tags=["debug", "small_dataset"], name=args.run_name)
-wandb.run.log_code(".")
-wandb.config["args"] = vars(args)
-nbatch = args.nbatch
 
 train.change_learning_rate(learningrate)
 
@@ -340,7 +343,7 @@ model, history = train.trainModel(nepochs=3,
 
 print("freeze BN")
 # Note the submodel here its not just train.keras_model
-#for l in train.keras_model.layers:
+# for l in train.keras_model.layers:
 #    if 'FullOCLoss' in l.name:
 #        l.q_min/=2.
 

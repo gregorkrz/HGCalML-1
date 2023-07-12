@@ -10,7 +10,7 @@ from numba import jit
 import gzip
 import os
 import pickle
-
+import pandas as pd
 
 def calc_eta(x, y, z):
     rsq = np.sqrt(x ** 2 + y ** 2)
@@ -19,10 +19,22 @@ def calc_eta(x, y, z):
 def calc_phi(x, y, z):
     return np.arctan2(y,x)#cms like
 
+# One hot encodings of the particles
+other = [310.0, 1000070144.0, 1000120256.0, 1000200448.0, 221.0, -12.0, 1000080192.0, 1000140288.0, 1000210496.0, 1000220480.0, -2112.0, -321.0, 1000230464.0, 1000130240.0, 1000260544.0, 1000110272.0, 1000250560.0, 1000240512.0, 1000030080.0, 1000110208.0, 1000060160.0, 321.0, 1000180352.0, 1000030016.0, 331.0, 1000250496.0, 3222.0, 3112.0, 3212.0, 3122.0, 113.0, 1000040128.0, 1000190400.0, 1000160320.0, 1000210432.0, 1000230528.0, 1000200384.0, 1000180416.0, 1000260480.0, 1000100224.0, 1000130304.0, 1000120192.0, 1000020096.0, 1000090176.0, 223.0, 1000220416.0, -3122.0, 1000170368.0, 1000090240.0, 1000100160.0, 1000190464.0, 1000050048.0, 1000150336.0, -3212.0, -411.0, 4122.0, 1000140224.0, 1000280576.0]
+# particles with freq less than 1000
+particle_ids = [11.0, 12.0, 13.0, 14.0, 22.0, 111.0, 130.0, 211.0, 2112.0, 2212.0, 1000010048.0, 1000020032.0, 1000040064.0, 1000050112.0, 1000060096.0, 1000080128.0]
+# IMPORTANT: use absolute_value and sign in a separate field
+
+particle_ids = [int(x) for x in particle_ids]
+other = [int(x) for x in other]
+
 #@jit(nopython=False)
 def truth_loop(link_list :list, 
                t_dict:dict,
                part_p_list :list,
+               part_pid_list: list,
+               part_theta_list: list,
+               part_phi_list: list,
                ):
     
     nevts = len(link_list)
@@ -31,16 +43,32 @@ def truth_loop(link_list :list,
         for ih in range(nhits):
             idx = -1
             mom = 0.
+            t_pos = [0.,0.,0.]
+            t_pid = [0.] * (len(particle_ids) + 2)
+            assert len(t_pid) == len(particle_ids) + 2
+            # 0th entry for the sign, 1st entry for "OTHER"
             if link_list[ie][ih] >= 0:
                 idx = link_list[ie][ih]
                 mom = part_p_list[ie][idx]
+                particle_id = 1
+                if abs(part_pid_list[ie][idx]) in particle_ids:
+                    particle_id = particle_ids.index(abs(part_pid_list[ie][idx])) + 2
+                t_pid[0] = np.sign(part_pid_list[ie][idx])
+                t_pid[int(particle_id)] = 1.
+                part_theta, part_phi = part_theta_list[ie][idx], part_phi_list[ie][idx]
+                r = 1  # arbitrary
+                x_part = r * np.sin(part_theta) * np.cos(part_phi)
+                y_part = r * np.sin(part_theta) * np.sin(part_phi)
+                z_part = r * np.cos(part_theta)
+                t_pos = [x_part, y_part, z_part]
+
                 
             t_dict['t_idx'].append([idx])
             t_dict['t_energy'].append([mom])
             
-            t_dict['t_pos'].append([0.,0.,0.])
+            t_dict['t_pos'].append(t_pos)
             t_dict['t_time'].append([0.])
-            t_dict['t_pid'].append([0.,0.,0.,0.,0.,0.])
+            t_dict['t_pid'].append(t_pid)
             t_dict['t_spectator'].append([0.])
             t_dict['t_fully_contained'].append([1.])
             t_dict['t_rec_energy'].append([mom]) # THIS WILL NEED TO BE ADJUSTED
@@ -104,11 +132,82 @@ class TrainData_fcc(TrainData):
             out['t_rec_energy'] = ilist[16]
         if len(ilist)>18:
             out['t_is_unique'] = ilist[18]
-        print("InterpretAllModelInputs: output:", out)
         return out
-
+    
+    def createPandasDataFrame(self, eventno=-1):
+        #since this is only needed occationally
+        
+        if self.nElements() <= eventno:
+            raise IndexError("Event wrongly selected")
+        
+        tdc = self.copy()
+        if eventno>=0:
+            tdc.skim(eventno)
+        
+        f = tdc.transferFeatureListToNumpy(False)
+        featd = self.createFeatureDict(f[0])
+        rs = f[1]
+        truthd = self.createTruthDict(f)
+        
+        featd.update(truthd)
+        
+        del featd['recHitXY'] #so that it's flat
+        
+        featd['recHitLogEnergy'] = np.log(featd['recHitEnergy']+1.+1e-8)
+        
+        #allarr = []
+        #for k in featd:
+        #    allarr.append(featd[k])
+        #allarr = np.concatenate(allarr,axis=1)
+        #
+        #frame = pd.DataFrame (allarr, columns = [k for k in featd])
+        #for k in featd.keys():
+        #    featd[k] = [featd[k]]
+        #frame = pd.DataFrame()
+        for k in featd.keys():
+            #frame.insert(0,k,featd[k])
+            if featd[k].shape[1] == 1:
+                featd[k] = np.squeeze(featd[k],axis=1)
+            elif k=='truthHitAssignedPIDs' or k== 't_pid':
+                featd[k] =  np.argmax(featd[k], axis=-1)
+            else:
+                raise ValueError("only pid one-hot allowed to have more than one additional dimension, tried to squeeze "+ k)
+        
+        frame = pd.DataFrame.from_records(featd)
+        
+        if eventno>=0:
+            return frame
+        else:
+            return frame, rs
 
     def createFeatureDict(self,infeat,addxycomb=True):
+        '''
+        infeat is the full list of features, including truth
+        '''
+        
+        #small compatibility layer with old usage.
+        feat = infeat
+        if type(infeat) == list:
+            feat=infeat[0]
+        
+        d = {
+        'recHitEnergy': feat[:,0:1] ,          #recHitEnergy,
+        'recHitEta'   : feat[:,1:2] ,          #recHitEta   ,
+        'recHitID'    : feat[:,2:3] ,          #recHitID, #indicator if it is track or not
+        'recHitTheta' : feat[:,3:4] ,          #recHitTheta ,
+        'recHitR'     : feat[:,4:5] ,          #recHitR   ,
+        'recHitX'     : feat[:,5:6] ,          #recHitX     ,
+        'recHitY'     : feat[:,6:7] ,          #recHitY     ,
+        'recHitZ'     : feat[:,7:8] ,          #recHitZ     ,
+        'recHitTime'  : feat[:,8:9] ,            #recHitTime  
+        'recHitHitR'  : feat[:,9:10] ,            #recHitTime  
+        }
+        if addxycomb:
+            d['recHitXY']  = feat[:,5:7]    
+            
+        return d
+    
+    def     reDict(self,infeat,addxycomb=True):
             '''
             infeat is the full list of features, including truth
             '''
@@ -204,9 +303,8 @@ class TrainData_fcc(TrainData):
             zerosf,
             hit_t
             ], axis=-1), rs,name="recHitFeatures")
-        
-        
-        
+
+
         # create truth
         hit_genlink = tree["hit_genlink0"].array()
         part_p = tree["part_p"].array()
@@ -224,10 +322,14 @@ class TrainData_fcc(TrainData):
             }
         
         #do this with numba
+        # print("Part pids", tree["part_pid"].array().tolist())
         t = truth_loop(hit_genlink.tolist(), 
                        t,
-               part_p.tolist(),
-               )
+                       part_p.tolist(),
+                       tree["part_pid"].array().tolist(),
+                       tree["part_theta"].array().tolist(),
+                       tree["part_phi"].array().tolist(),
+        )
         
         for k in t.keys():
             if k == 't_idx' or k == 't_is_unique':
@@ -239,7 +341,7 @@ class TrainData_fcc(TrainData):
         return [farr, 
                 t['t_idx'], t['t_energy'], t['t_pos'], t['t_time'], 
                 t['t_pid'], t['t_spectator'], t['t_fully_contained'],
-                t['t_rec_energy'], t['t_is_unique'] ],[], []
+                t['t_rec_energy'], t['t_is_unique'] ], [], []
 
     def writeOutPrediction(self, predicted, features, truth, weights, outfilename, inputfile):
         outfilename = os.path.splitext(outfilename)[0] + '.bin.gz'

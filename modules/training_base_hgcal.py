@@ -25,7 +25,7 @@ class HGCalTraining(training_base):
             
         
         from config_saver import copyModules
-        copyModules(self.outputDir)#save the modules with indexing for overwrites
+        copyModules(self.outputDir)  #save the modules with indexing for overwrites
 
     def compileModel(self, **kwargs):
         super().compileModel(is_eager=True,

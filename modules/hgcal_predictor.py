@@ -80,6 +80,7 @@ class HGCalPredictor():
             os.system('mkdir -p ' + self.predict_dir)
 
         if model is None:
+            print("loading model from", model_path)
             model = load_model(model_path)
 
         all_data = []
