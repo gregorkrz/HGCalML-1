@@ -8,7 +8,7 @@ from Initializers import EyeInitializer
 from GravNetLayersRagged import CondensateToIdxs, EdgeCreator
 from Layers import SplitFeatures, FlatNeighbourFeatures, Sqrt
 
-from datastructures.TrainData_NanoML import n_id_classes
+from datastructures.TrainData_fcc import n_id_classes
 
 def extent_coords_if_needed(coords, x, n_cluster_space_coordinates,name='coord_extend'):
     if n_cluster_space_coordinates > 3:

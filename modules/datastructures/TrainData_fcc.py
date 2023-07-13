@@ -12,6 +12,8 @@ import os
 import pickle
 import pandas as pd
 
+n_id_classes = 18
+
 def calc_eta(x, y, z):
     rsq = np.sqrt(x ** 2 + y ** 2)
     return -1 * np.sign(z) * np.log(rsq / np.abs(z + 1e-3) / 2.+1e-3)
@@ -56,7 +58,7 @@ def truth_loop(link_list :list,
                 t_pid[0] = np.sign(part_pid_list[ie][idx])
                 t_pid[int(particle_id)] = 1.
                 part_theta, part_phi = part_theta_list[ie][idx], part_phi_list[ie][idx]
-                r = 1  # arbitrary
+                r = mom
                 x_part = r * np.sin(part_theta) * np.cos(part_phi)
                 y_part = r * np.sin(part_theta) * np.sin(part_phi)
                 z_part = r * np.cos(part_theta)
@@ -65,7 +67,6 @@ def truth_loop(link_list :list,
                 
             t_dict['t_idx'].append([idx])
             t_dict['t_energy'].append([mom])
-            
             t_dict['t_pos'].append(t_pos)
             t_dict['t_time'].append([0.])
             t_dict['t_pid'].append(t_pid)
@@ -283,8 +284,8 @@ class TrainData_fcc(TrainData):
         hit_t = self.branchToFlatArray(tree["hit_t"])
         hit_e = self.branchToFlatArray(tree["hit_e"])
         hit_theta = self.branchToFlatArray(tree["hit_theta"])
+        #hit_type = self.branchToFlatArray(tree["hit_type"])
         
-
         zerosf = 0.*hit_e
         
         print('hit_e',hit_e)
@@ -302,7 +303,7 @@ class TrainData_fcc(TrainData):
             hit_z,
             zerosf,
             hit_t
-            ], axis=-1), rs,name="recHitFeatures")
+            ], axis=-1), rs,name="recHitFeatures") # TODO: add hit_type
 
 
         # create truth
