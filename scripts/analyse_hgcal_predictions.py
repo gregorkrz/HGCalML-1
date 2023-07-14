@@ -4,7 +4,8 @@ import gzip
 import pickle
 import numpy as np
 
-import mgzip
+#import mgzip
+import gzip  # problems with mgzip for large datasets, for some reason
 
 import argparse
 import time
@@ -33,7 +34,7 @@ def analyse(preddir, pdfpath, beta_threshold, distance_threshold, iou_threshold,
 
     for i, file in enumerate(files_to_be_tested):
         print("Analysing file %d/%d"% (i, len(files_to_be_tested)))
-        with mgzip.open(file, 'rb') as f:
+        with gzip.open(file, 'rb') as f:
             file_data = pickle.load(f)
             if toydata:
                 with open(extra_files[i], 'rb') as xf: 
