@@ -12,7 +12,7 @@ import os
 import pickle
 import pandas as pd
 
-n_id_classes = 18
+n_id_classes = 22
 
 def calc_eta(x, y, z):
     rsq = np.sqrt(x ** 2 + y ** 2)
@@ -22,13 +22,15 @@ def calc_phi(x, y, z):
     return np.arctan2(y,x)#cms like
 
 # One hot encodings of the particles
-other = [310.0, 1000070144.0, 1000120256.0, 1000200448.0, 221.0, -12.0, 1000080192.0, 1000140288.0, 1000210496.0, 1000220480.0, -2112.0, -321.0, 1000230464.0, 1000130240.0, 1000260544.0, 1000110272.0, 1000250560.0, 1000240512.0, 1000030080.0, 1000110208.0, 1000060160.0, 321.0, 1000180352.0, 1000030016.0, 331.0, 1000250496.0, 3222.0, 3112.0, 3212.0, 3122.0, 113.0, 1000040128.0, 1000190400.0, 1000160320.0, 1000210432.0, 1000230528.0, 1000200384.0, 1000180416.0, 1000260480.0, 1000100224.0, 1000130304.0, 1000120192.0, 1000020096.0, 1000090176.0, 223.0, 1000220416.0, -3122.0, 1000170368.0, 1000090240.0, 1000100160.0, 1000190464.0, 1000050048.0, 1000150336.0, -3212.0, -411.0, 4122.0, 1000140224.0, 1000280576.0]
+
 # particles with freq less than 1000
-particle_ids = [11.0, 12.0, 13.0, 14.0, 22.0, 111.0, 130.0, 211.0, 2112.0, 2212.0, 1000010048.0, 1000020032.0, 1000040064.0, 1000050112.0, 1000060096.0, 1000080128.0]
+# other = [310.0, 1000070144.0, 1000120256.0, 1000200448.0, 221.0, -12.0, 1000080192.0, 1000140288.0, 1000210496.0, 1000220480.0, -2112.0, -321.0, 1000230464.0, 1000130240.0, 1000260544.0, 1000110272.0, 1000250560.0, 1000240512.0, 1000030080.0, 1000110208.0, 1000060160.0, 321.0, 1000180352.0, 1000030016.0, 331.0, 1000250496.0, 3222.0, 3112.0, 3212.0, 3122.0, 113.0, 1000040128.0, 1000190400.0, 1000160320.0, 1000210432.0, 1000230528.0, 1000200384.0, 1000180416.0, 1000260480.0, 1000100224.0, 1000130304.0, 1000120192.0, 1000020096.0, 1000090176.0, 223.0, 1000220416.0, -3122.0, 1000170368.0, 1000090240.0, 1000100160.0, 1000190464.0, 1000050048.0, 1000150336.0, -3212.0, -411.0, 4122.0, 1000140224.0, 1000280576.0]
+
+particle_ids = [-2212.0, -211.0, -14.0, -13.0, -11.0, 11.0, 12.0, 13.0, 14.0, 22.0, 111.0, 130.0, 211.0, 2112.0, 2212.0, 1000010048.0, 1000020032.0, 1000040064.0, 1000050112.0, 1000060096.0, 1000080128.0]
 # IMPORTANT: use absolute_value and sign in a separate field
 
 particle_ids = [int(x) for x in particle_ids]
-other = [int(x) for x in other]
+#other = [int(x) for x in other]
 
 #@jit(nopython=False)
 def truth_loop(link_list :list, 
@@ -46,16 +48,16 @@ def truth_loop(link_list :list,
             idx = -1
             mom = 0.
             t_pos = [0.,0.,0.]
-            t_pid = [0.] * (len(particle_ids) + 2)
-            assert len(t_pid) == len(particle_ids) + 2
+            t_pid = [0.] * (len(particle_ids) + 1) # "other" category
+            assert len(t_pid) == len(particle_ids) + 1
             # 0th entry for the sign, 1st entry for "OTHER"
             if link_list[ie][ih] >= 0:
                 idx = link_list[ie][ih]
                 mom = part_p_list[ie][idx]
-                particle_id = 1
-                if abs(part_pid_list[ie][idx]) in particle_ids:
-                    particle_id = particle_ids.index(abs(part_pid_list[ie][idx])) + 2
-                t_pid[0] = np.sign(part_pid_list[ie][idx])
+                particle_id = 0
+                if (part_pid_list[ie][idx]) in particle_ids:
+                    particle_id = particle_ids.index((part_pid_list[ie][idx])) + 1
+                # t_pid[0] = np.sign(part_pid_list[ie][idx]) # don't encode separate sign...
                 t_pid[int(particle_id)] = 1.
                 part_theta, part_phi = part_theta_list[ie][idx], part_phi_list[ie][idx]
                 r = mom
