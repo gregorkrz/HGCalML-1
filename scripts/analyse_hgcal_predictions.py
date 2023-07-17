@@ -142,8 +142,21 @@ if __name__ == '__main__':
     parser.add_argument('--no_soft', help='Use condensate op', action='store_true')
     parser.add_argument('--filter_pu', help='Filter PU', action='store_true')
     parser.add_argument('--toydata', help='Use toy detector', action='store_true')
+    parser.add_argument('--gpu', '-gpu', required=True, help='GPU number to use', type=int)
 
     args = parser.parse_args()
+
+    import tensorflow as tf
+    gpus = tf.config.list_physical_devices('GPU')
+    if gpus:
+        # Restrict TensorFlow to only use the first GPU
+        try:
+            tf.config.set_visible_devices(gpus[args.gpu], 'GPU')
+            logical_gpus = tf.config.list_logical_devices('GPU')
+            print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPU")
+        except RuntimeError as e:
+            # Visible devices must be set before GPUs have been initialized
+            print(e)
 
     analyse(preddir=args.preddir, 
             pdfpath=args.p, 
