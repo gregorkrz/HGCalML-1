@@ -161,6 +161,7 @@ class TrainData_fcc(TrainData):
     def branchToFlatArrayNumpy(self, b, return_row_splits=False, dtype="float32"):
         def flatten_list(lst):
             return np.array([item for sublist in lst for item in sublist])
+
         nevents = len(b)
         rowsplits = [0]
         for i in range(nevents):
@@ -454,10 +455,13 @@ class TrainData_fcc(TrainData):
         hit_e = self.branchToFlatArrayNumpy(hit_e)
         hit_theta = self.branchToFlatArrayNumpy(hit_theta)
         hit_type = self.branchToFlatArrayNumpy(hit_type)
+        # convert hit type to onehot
+        hit_type_onehot = np.zeros((hit_type.size, 4))  # fix the number of cat
+        hit_type_onehot[np.arange(hit_type.size), hit_type] = 1
         hit_phi = self.branchToFlatArrayNumpy(hit_phi)
 
         hit_x, hit_y, hit_z = spherical_to_cartesian(
-            hit_theta, hit_phi, 0, normalized=False
+            hit_theta, hit_phi, 0, normalized=True
         )
         zerosf = 0.0 * hit_e
         hit_e = np.where(hit_e < 0.0, 0.0, hit_e)
@@ -466,7 +470,7 @@ class TrainData_fcc(TrainData):
                 [
                     hit_e,
                     zerosf,
-                    zerosf,  # indicator if it is track or not
+                    zerosf,  #! indicator if it is track or not (maybe we can remove this)
                     zerosf,
                     hit_theta,
                     hit_x,
@@ -474,7 +478,7 @@ class TrainData_fcc(TrainData):
                     hit_z,
                     zerosf,
                     hit_t,
-                    hit_type,
+                    hit_type_onehot,  # hit type one hot
                 ],
                 axis=-1,
             ),
