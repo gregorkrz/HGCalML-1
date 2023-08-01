@@ -8,7 +8,6 @@ import gzip
 import os
 import pickle
 import pandas as pd
-
 import pdb
 
 
@@ -61,7 +60,7 @@ def find_mask_no_energy(hit_particle_link, hit_type_a):
             list_remove.append(p)
     if len(list_remove) > 0:
         #mask = torch.tensor(np.full((len(hit_particle_link)), False, dtype=bool))
-        mask = tf.fill(dims=tf.shape(hit_particle_link), value=False, name=None)
+        mask = np.full((len(hit_particle_link)), False, dtype=bool)
         for p in list_remove:
             mask1 = hit_particle_link == p
             mask = mask1 + mask
@@ -342,16 +341,18 @@ class TrainData_fcc(TrainData):
         part_theta = to_numpy(tree["part_theta"].array().tolist())
         part_phi = to_numpy(tree["part_phi"].array().tolist())
         #pdb.set_trace()
-
+        print(len(hit_type), len(hit_genlink))
         for ei in range(len(hit_genlink)):
             # ei: event index
             cluster_id, unique_list_particles = find_cluster_id(hit_genlink[ei])
+            print("EI",ei)
             print("T", hit_type[ei].shape)
-            print("------", hit_type[ei].shape, hit_genlink[ei].shape, cluster_id, unique_list_particles)
-            print(np.unique(hit_genlink[ei]))
+            #print("------", hit_type[ei].shape, hit_genlink[ei].shape, cluster_id, unique_list_particles)
+            #print(np.unique(hit_genlink[ei]))
             mask_hits, mask_particles = find_mask_no_energy(hit_genlink[ei], hit_type[ei])
             #print("mask hits", mask_hits)
             #print("mask particles", mask_particles)
+            hit_genlink[ei] = cluster_id
             hit_genlink[ei] = hit_genlink[ei][mask_hits]
             print(ei)
             print(mask_particles.shape, mask_particles[:3])
@@ -360,7 +361,7 @@ class TrainData_fcc(TrainData):
             part_pid[ei] = part_pid[ei][unique_list_particles][mask_particles]
             part_theta[ei] = part_theta[ei][unique_list_particles][mask_particles]
             part_phi[ei] = part_phi[ei][unique_list_particles][mask_particles]
-            hit_x, hit_y, hit_z, hit_t, hit_e, hit_theta, hit_type = hit_x[ei][mask_hits], hit_y[ei][mask_hits], hit_z[ei][mask_hits], hit_t[ei][mask_hits], hit_e[ei][mask_hits], hit_theta[ei][mask_hits], hit_type[ei][mask_hits]
+            hit_x[ei], hit_y[ei], hit_z[ei], hit_t[ei], hit_e[ei], hit_theta[ei], hit_type[ei] = hit_x[ei][mask_hits], hit_y[ei][mask_hits], hit_z[ei][mask_hits], hit_t[ei][mask_hits], hit_e[ei][mask_hits], hit_theta[ei][mask_hits], hit_type[ei][mask_hits]
 
         hit_x, rs = self.branchToFlatArray(tree["hit_x"], True)
         hit_y = self.branchToFlatArray(tree["hit_y"])
@@ -400,14 +401,13 @@ class TrainData_fcc(TrainData):
         # do this with numba
         # print("Part pids", tree["part_pid"].array().tolist())
 
-        t = truth_loop(hit_genlink.tolist(),
+        t = truth_loop(hit_genlink,
                        t,
-                       part_p.tolist(),
-                       tree["part_pid"].array().tolist(),
-                       tree["part_theta"].array().tolist(),
-                       tree["part_phi"].array().tolist(),
-                       tree["hit_type"].array().tolist()
-                       )
+                       part_p,
+                       part_pid,
+                       part_theta,
+                       part_phi,
+                       hit_type)
 
 
         for k in t.keys():
