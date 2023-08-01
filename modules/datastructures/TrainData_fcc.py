@@ -165,7 +165,8 @@ class TrainData_fcc(TrainData):
         nevents = len(b)
         rowsplits = [0]
         for i in range(nevents):
-            rowsplits.append(rowsplits[-1] + b[i].shape[0])
+            if b[i].shape[0] > 0:
+                rowsplits.append(rowsplits[-1] + b[i].shape[0])
         rowsplits = np.array(rowsplits, dtype="int64")
 
         if return_row_splits:
