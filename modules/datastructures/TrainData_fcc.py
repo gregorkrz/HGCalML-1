@@ -131,7 +131,17 @@ def truth_loop(link_list :list,
     
 
 class TrainData_fcc(TrainData):
-   
+    def branchToFlatArrayNumpy(self, b, return_row_splits=False, dtype='float32'):
+        nevents = len(b)
+        rowsplits = [0]
+        for i in range(nevents):
+            rowsplits.append(rowsplits[-1] + b[i].shape[0])
+        rowsplits = np.array(rowsplits, dtype='int64')
+
+        if return_row_splits:
+            return np.expand_dims(np.array(b.flatten(), dtype=dtype), axis=1), np.array(rowsplits, dtype='int64')
+        else:
+            return np.expand_dims(np.array(b.flatten(), dtype=dtype), axis=1)
     def branchToFlatArray(self, b, return_row_splits=False, dtype='float32'):
 
         a = b.array()
@@ -355,21 +365,21 @@ class TrainData_fcc(TrainData):
             hit_genlink[ei] = cluster_id
             hit_genlink[ei] = hit_genlink[ei][mask_hits]
             print(ei)
-            print(mask_particles.shape, mask_particles[:3])
-            print("partp", part_p[ei].shape, "partidx", )
+            print(mask_particles.shape, mask_particles)
+            print("partp", part_p[ei].shape, "clust_id", cluster_id)
             part_p[ei] = part_p[ei][unique_list_particles][mask_particles]
             part_pid[ei] = part_pid[ei][unique_list_particles][mask_particles]
             part_theta[ei] = part_theta[ei][unique_list_particles][mask_particles]
             part_phi[ei] = part_phi[ei][unique_list_particles][mask_particles]
             hit_x[ei], hit_y[ei], hit_z[ei], hit_t[ei], hit_e[ei], hit_theta[ei], hit_type[ei] = hit_x[ei][mask_hits], hit_y[ei][mask_hits], hit_z[ei][mask_hits], hit_t[ei][mask_hits], hit_e[ei][mask_hits], hit_theta[ei][mask_hits], hit_type[ei][mask_hits]
 
-        hit_x, rs = self.branchToFlatArray(tree["hit_x"], True)
-        hit_y = self.branchToFlatArray(tree["hit_y"])
-        hit_z = self.branchToFlatArray(tree["hit_z"])
-        hit_t = self.branchToFlatArray(tree["hit_t"])
-        hit_e = self.branchToFlatArray(tree["hit_e"])
-        hit_theta = self.branchToFlatArray(tree["hit_theta"])
-        hit_type = self.branchToFlatArray(tree["hit_type"])
+        hit_x, rs = self.branchToFlatArray(hit_x, True)
+        hit_y = self.branchToFlatArray(hit_y)
+        hit_z = self.branchToFlatArray(hit_z)
+        hit_t = self.branchToFlatArray(hit_t)
+        hit_e = self.branchToFlatArray(hit_e)
+        hit_theta = self.branchToFlatArray(hit_theta)
+        hit_type = self.branchToFlatArray(hit_type)
         zerosf = 0. * hit_e
         hit_e = np.where(hit_e < 0., 0., hit_e)
         farr = SimpleArray(np.concatenate([
