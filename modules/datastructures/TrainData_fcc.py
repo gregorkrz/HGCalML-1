@@ -132,6 +132,8 @@ def truth_loop(link_list :list,
 
 class TrainData_fcc(TrainData):
     def branchToFlatArrayNumpy(self, b, return_row_splits=False, dtype='float32'):
+        def flatten_list(lst):
+            return np.array([list(item) for sublist in lst for item in sublist])
         nevents = len(b)
         rowsplits = [0]
         for i in range(nevents):
@@ -139,9 +141,9 @@ class TrainData_fcc(TrainData):
         rowsplits = np.array(rowsplits, dtype='int64')
 
         if return_row_splits:
-            return np.expand_dims(np.array(b.flatten(), dtype=dtype), axis=1), np.array(rowsplits, dtype='int64')
+            return np.expand_dims(np.array(flatten_list(b), dtype=dtype), axis=1), np.array(rowsplits, dtype='int64')
         else:
-            return np.expand_dims(np.array(b.flatten(), dtype=dtype), axis=1)
+            return np.expand_dims(np.array(flatten_list(b), dtype=dtype), axis=1)
     def branchToFlatArray(self, b, return_row_splits=False, dtype='float32'):
 
         a = b.array()
