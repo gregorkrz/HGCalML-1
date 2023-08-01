@@ -285,6 +285,7 @@ if not train.modelSet():
     train.compileModel(learningrate=1e-4)
     
     train.keras_model.summary()
+    wandb.watch(train.keras_model, log="all", log_freq=100)
     
 
 verbosity = 2
