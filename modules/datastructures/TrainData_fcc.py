@@ -373,13 +373,13 @@ class TrainData_fcc(TrainData):
             part_phi[ei] = part_phi[ei][unique_list_particles][mask_particles]
             hit_x[ei], hit_y[ei], hit_z[ei], hit_t[ei], hit_e[ei], hit_theta[ei], hit_type[ei] = hit_x[ei][mask_hits], hit_y[ei][mask_hits], hit_z[ei][mask_hits], hit_t[ei][mask_hits], hit_e[ei][mask_hits], hit_theta[ei][mask_hits], hit_type[ei][mask_hits]
 
-        hit_x, rs = self.branchToFlatArray(hit_x, True)
-        hit_y = self.branchToFlatArray(hit_y)
-        hit_z = self.branchToFlatArray(hit_z)
-        hit_t = self.branchToFlatArray(hit_t)
-        hit_e = self.branchToFlatArray(hit_e)
-        hit_theta = self.branchToFlatArray(hit_theta)
-        hit_type = self.branchToFlatArray(hit_type)
+        hit_x, rs = self.branchToFlatArrayNumpy(hit_x, True)
+        hit_y = self.branchToFlatArrayNumpy(hit_y)
+        hit_z = self.branchToFlatArrayNumpy(hit_z)
+        hit_t = self.branchToFlatArrayNumpy(hit_t)
+        hit_e = self.branchToFlatArrayNumpy(hit_e)
+        hit_theta = self.branchToFlatArrayNumpy(hit_theta)
+        hit_type = self.branchToFlatArrayNumpy(hit_type)
         zerosf = 0. * hit_e
         hit_e = np.where(hit_e < 0., 0., hit_e)
         farr = SimpleArray(np.concatenate([
