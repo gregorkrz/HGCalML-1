@@ -453,6 +453,28 @@ class TrainData_fcc(TrainData):
             )
             hit_phi[ei] = hit_phi[ei][mask_hits]
 
+            # remove tracks
+            hit_tracks = (hit_type[ei] == 0) | (hit_type[ei] == 1)
+            mask_no_track = ~hit_tracks
+            (
+                hit_x[ei],
+                hit_y[ei],
+                hit_z[ei],
+                hit_t[ei],
+                hit_e[ei],
+                hit_theta[ei],
+                hit_type[ei],
+            ) = (
+                hit_x[ei][mask_no_track],
+                hit_y[ei][mask_no_track],
+                hit_z[ei][mask_no_track],
+                hit_t[ei][mask_no_track],
+                hit_e[ei][mask_no_track],
+                hit_theta[ei][mask_no_track],
+                hit_type[ei][mask_no_track],
+            )
+            hit_phi[ei] = hit_phi[ei][mask_no_track]
+
         hit_x, rs = self.branchToFlatArrayNumpy(hit_x, True)
         hit_y = self.branchToFlatArrayNumpy(hit_y)
         hit_z = self.branchToFlatArrayNumpy(hit_z)
@@ -461,20 +483,22 @@ class TrainData_fcc(TrainData):
         hit_theta = self.branchToFlatArrayNumpy(hit_theta)
         hit_type = self.branchToFlatArrayNumpy(hit_type)
         # convert hit type to onehot
-        hit_type_onehot = np.zeros((hit_type.size, 4))  # fix the number of cat
+        hit_type_onehot = np.zeros((hit_type.size, 2))  # fix the number of cat
         hit_type_onehot[np.arange(hit_type.size), hit_type] = 1
         hit_phi = self.branchToFlatArrayNumpy(hit_phi)
 
         hit_x, hit_y, hit_z = spherical_to_cartesian(
             hit_theta, hit_phi, 0, normalized=True
         )
+
         zerosf = 0.0 * hit_e
+
         hit_e = np.where(hit_e < 0.0, 0.0, hit_e)
         farr = SimpleArray(
             np.concatenate(
                 [
                     hit_e,  # 0
-                    zerosf,  # 1 
+                    zerosf,  # 1
                     zerosf,  # 2 #! indicator if it is track or not (maybe we can remove this)
                     zerosf,  # 3
                     hit_theta,  # 4
