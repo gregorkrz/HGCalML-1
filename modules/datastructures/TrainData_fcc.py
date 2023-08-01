@@ -413,14 +413,18 @@ class TrainData_fcc(TrainData):
             cluster_id, unique_list_particles = find_cluster_id(hit_genlink[ei])
             print("EI", ei)
             print("T", hit_type[ei].shape)
-            #print("------", hit_type[ei].shape, hit_genlink[ei].shape, cluster_id, unique_list_particles)
-            #print(np.unique(hit_genlink[ei]))
-            mask_hits, mask_particles = find_mask_no_energy(hit_genlink[ei], hit_type[ei])
-            #print("mask hits", mask_hits)
+            # print("------", hit_type[ei].shape, hit_genlink[ei].shape, cluster_id, unique_list_particles)
+            # print(np.unique(hit_genlink[ei]))
+            mask_hits, mask_particles = find_mask_no_energy(
+                hit_genlink[ei], hit_type[ei]
+            )
+            # print("mask hits", mask_hits)
             mask_hits = ~mask_hits
             mask_particles = ~mask_particles
-            #print("mask particles", mask_particles)
-            clust_id_new, unique_list_particles_new = find_cluster_id(hit_genlink[ei][mask_hits])
+            # print("mask particles", mask_particles)
+            clust_id_new, unique_list_particles_new = find_cluster_id(
+                hit_genlink[ei][mask_hits]
+            )
             hit_genlink[ei] = clust_id_new - 1
             print(ei)
             print(mask_particles.shape, mask_particles)
@@ -468,17 +472,17 @@ class TrainData_fcc(TrainData):
         farr = SimpleArray(
             np.concatenate(
                 [
-                    hit_e,
-                    zerosf,
-                    zerosf,  #! indicator if it is track or not (maybe we can remove this)
-                    zerosf,
-                    hit_theta,
-                    hit_x,
-                    hit_y,
-                    hit_z,
-                    zerosf,
-                    hit_t,
-                    hit_type_onehot,  # hit type one hot
+                    hit_e,  # 0
+                    zerosf,  # 1 
+                    zerosf,  # 2 #! indicator if it is track or not (maybe we can remove this)
+                    zerosf,  # 3
+                    hit_theta,  # 4
+                    hit_x,  # 5 (5 to 8 are selected as coordinates)
+                    hit_y,  # 6
+                    hit_z,  # 7
+                    zerosf,  # 8
+                    hit_t,  # 9
+                    hit_type_onehot,  # 10 hit type one hot #total input size 12
                 ],
                 axis=-1,
             ),
