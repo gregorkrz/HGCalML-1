@@ -160,8 +160,7 @@ def truth_loop(
 class TrainData_fcc(TrainData):
     def branchToFlatArrayNumpy(self, b, return_row_splits=False, dtype="float32"):
         def flatten_list(lst):
-            return np.array([list(item) for sublist in lst for item in sublist])
-
+            return np.array([item for sublist in lst for item in sublist])
         nevents = len(b)
         rowsplits = [0]
         for i in range(nevents):
