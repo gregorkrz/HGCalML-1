@@ -426,7 +426,7 @@ class TrainData_fcc(TrainData):
             clust_id_new, unique_list_particles_new = find_cluster_id(
                 hit_genlink[ei][mask_hits]
             )
-            hit_genlink[ei] = clust_id_new - 1
+            hit_genlink[ei] = clust_id_new
             print(ei)
             print(mask_particles.shape, mask_particles)
             print("partp", part_p[ei].shape, "clust_id", cluster_id)
@@ -474,6 +474,7 @@ class TrainData_fcc(TrainData):
                 hit_type[ei][mask_no_track],
             )
             hit_phi[ei] = hit_phi[ei][mask_no_track]
+            hit_genlink[ei] = clust_id_new[mask_no_track]
 
         hit_x, rs = self.branchToFlatArrayNumpy(hit_x, True)
         hit_y = self.branchToFlatArrayNumpy(hit_y)
