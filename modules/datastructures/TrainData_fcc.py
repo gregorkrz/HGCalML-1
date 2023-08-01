@@ -1,6 +1,3 @@
-
-
-
 from DeepJetCore.TrainData import TrainData, fileTimeOut
 from DeepJetCore import SimpleArray
 import numpy as np
@@ -11,6 +8,13 @@ import gzip
 import os
 import pickle
 import pandas as pd
+
+import pdb
+
+
+def to_numpy(lst):
+    return [np.array(x) for x in lst]
+
 
 n_id_classes = 22
 
@@ -32,6 +36,52 @@ particle_ids = [-2212.0, -211.0, -14.0, -13.0, -11.0, 11.0, 12.0, 13.0, 14.0, 22
 particle_ids = [int(x) for x in particle_ids]
 #other = [int(x) for x in other]
 
+def find_cluster_id(hit_particle_link):
+    unique_list_particles = list(np.unique(hit_particle_link))
+    if np.sum(np.array(unique_list_particles) == -1) > 0:
+        non_noise_idx = np.where(unique_list_particles != -1)[0]
+        noise_idx = np.where(unique_list_particles == -1)[0]
+        non_noise_particles = unique_list_particles[non_noise_idx]
+        cluster_id = map(lambda x: non_noise_particles.index(x), hit_particle_link)
+        cluster_id = np.array(list(cluster_id)) + 1
+        unique_list_particles[non_noise_idx] = cluster_id
+        unique_list_particles[noise_idx] = 0
+    else:
+        cluster_id = map(lambda x: unique_list_particles.index(x), hit_particle_link)
+        cluster_id = np.array(list(cluster_id)) + 1
+    return cluster_id, unique_list_particles
+
+def find_mask_no_energy(hit_particle_link, hit_type_a):
+    list_p = np.unique(hit_particle_link)
+    list_remove = []
+    for p in list_p:
+        mask = hit_particle_link == p
+        hit_types = np.unique(hit_type_a[mask])
+        if np.array_equal(hit_types, [0, 1]):
+            list_remove.append(p)
+    if len(list_remove) > 0:
+        #mask = torch.tensor(np.full((len(hit_particle_link)), False, dtype=bool))
+        mask = tf.fill(dims=tf.shape(hit_particle_link), value=False, name=None)
+        for p in list_remove:
+            mask1 = hit_particle_link == p
+            mask = mask1 + mask
+
+    else:
+        mask = np.full((len(hit_particle_link)), False, dtype=bool)
+
+    if len(list_remove) > 0:
+        mask_particles = np.full((len(list_p)), False, dtype=bool)
+        for p in list_remove:
+            mask_particles1 = list_p == p
+            mask_particles = mask_particles1 + mask_particles
+
+    else:
+        mask_particles = np.full((len(list_p)), False, dtype=bool)
+
+    return mask, mask_particles
+
+
+
 #@jit(nopython=False)
 def truth_loop(link_list :list, 
                t_dict:dict,
@@ -39,18 +89,22 @@ def truth_loop(link_list :list,
                part_pid_list: list,
                part_theta_list: list,
                part_phi_list: list,
+               hit_type_list: list
                ):
     
     nevts = len(link_list)
+    masks = []
+
     for ie in range(nevts):#event
-        nhits  = len(link_list[ie])
+        nhits = len(link_list[ie])
+        hit_particle_link = link_list[ie]
+        hit_type_a = hit_type_list[ie]
         for ih in range(nhits):
             idx = -1
             mom = 0.
             t_pos = [0.,0.,0.]
             t_pid = [0.] * (len(particle_ids) + 1) # "other" category
             assert len(t_pid) == len(particle_ids) + 1
-            # 0th entry for the sign, 1st entry for "OTHER"
             if link_list[ie][ih] >= 0:
                 idx = link_list[ie][ih]
                 mom = part_p_list[ie][idx]
@@ -65,8 +119,6 @@ def truth_loop(link_list :list,
                 y_part = r * np.sin(part_theta) * np.sin(part_phi)
                 z_part = r * np.cos(part_theta)
                 t_pos = [x_part, y_part, z_part]
-
-                
             t_dict['t_idx'].append([idx])
             t_dict['t_energy'].append([mom])
             t_dict['t_pos'].append(t_pos)
@@ -74,24 +126,22 @@ def truth_loop(link_list :list,
             t_dict['t_pid'].append(t_pid)
             t_dict['t_spectator'].append([0.])
             t_dict['t_fully_contained'].append([1.])
-            t_dict['t_rec_energy'].append([mom]) # THIS WILL NEED TO BE ADJUSTED
-            t_dict['t_is_unique'].append([1]) #does not matter really
-    
-    
+            t_dict['t_rec_energy'].append([mom])   # THIS WILL NEED TO BE ADJUSTED
+            t_dict['t_is_unique'].append([1])    # does not matter really
     return t_dict
     
 
 class TrainData_fcc(TrainData):
    
     def branchToFlatArray(self, b, return_row_splits=False, dtype='float32'):
-        
+
         a = b.array()
         nevents = a.shape[0]
         rowsplits = [0]
-        
+
         for i in range(nevents):
             rowsplits.append(rowsplits[-1] + a[i].shape[0])
-        
+
         rowsplits = np.array(rowsplits, dtype='int64')
         
         if return_row_splits:
@@ -244,7 +294,7 @@ class TrainData_fcc(TrainData):
         #print(__name__,'createTruthDict: should be deprecated soon and replaced by a more uniform interface')
         data = self.interpretAllModelInputs(allfeat,returndict=True)
         
-        out={
+        out = {
             'truthHitAssignementIdx': data['t_idx'],
             'truthHitAssignedEnergies': data['t_energy'],
             'truthHitAssignedX': data['t_pos'][:,0:1],
@@ -262,9 +312,117 @@ class TrainData_fcc(TrainData):
         if 't_hit_unique' in data.keys():
             out['t_is_unique']=data['t_hit_unique']
         return out
-    
 
     def convertFromSourceFile(self, filename, weighterobjects, istraining, treename="events"):
+
+        fileTimeOut(filename, 10)  # wait 10 seconds for file in case there are hiccups
+        tree = uproot.open(filename)[treename]
+        '''
+        hit_x, hit_y, hit_z: the spatial coordinates of the voxel centroids that registered the hit
+        hit_dE: the energy registered in the voxel (signal + BIB noise)
+        recHit_dE: the 'reconstructed' hit energy, i.e. the energy deposited by signal only
+        evt_dE: the total energy deposited by the signal photon in the calorimeter
+        evt_ID: an int label for each event -only for bookkeeping, should not be needed
+        isSignal: a flag, -1 if only BIB noise, 0 if there is also signal hit deposition
+        '''
+        hit_features = ["hit_x", "hit_y", "hit_z", "hit_t", "hit_e", "hit_theat", "hit_type"]
+
+        hit_x = to_numpy(tree["hit_x"].array().tolist())
+        hit_y = to_numpy(tree["hit_y"].array().tolist())
+        hit_z = to_numpy(tree["hit_z"].array().tolist())
+        hit_t = to_numpy(tree["hit_t"].array().tolist())
+        hit_e = to_numpy(tree["hit_e"].array().tolist())
+        hit_theta = to_numpy(tree["hit_theta"].array().tolist())
+        hit_type = to_numpy(tree["hit_type"].array().tolist())
+        # create truth
+        hit_genlink = to_numpy(tree["hit_genlink0"].array().tolist())
+        #print(type(hit_genlink), hit_genlink)
+        part_p = to_numpy(tree["part_p"].array().tolist())
+        part_pid = to_numpy(tree["part_pid"].array().tolist())
+        part_theta = to_numpy(tree["part_theta"].array().tolist())
+        part_phi = to_numpy(tree["part_phi"].array().tolist())
+        #pdb.set_trace()
+
+        for ei in range(len(hit_genlink)):
+            # ei: event index
+            cluster_id, unique_list_particles = find_cluster_id(hit_genlink[ei])
+            print("T", hit_type[ei].shape)
+            print("------", hit_type[ei].shape, hit_genlink[ei].shape, cluster_id, unique_list_particles)
+            print(np.unique(hit_genlink[ei]))
+            mask_hits, mask_particles = find_mask_no_energy(hit_genlink[ei], hit_type[ei])
+            #print("mask hits", mask_hits)
+            #print("mask particles", mask_particles)
+            hit_genlink[ei] = hit_genlink[ei][mask_hits]
+            print(ei)
+            print(mask_particles.shape, mask_particles[:3])
+            print("partp", part_p[ei].shape, "partidx", )
+            part_p[ei] = part_p[ei][unique_list_particles][mask_particles]
+            part_pid[ei] = part_pid[ei][unique_list_particles][mask_particles]
+            part_theta[ei] = part_theta[ei][unique_list_particles][mask_particles]
+            part_phi[ei] = part_phi[ei][unique_list_particles][mask_particles]
+            hit_x, hit_y, hit_z, hit_t, hit_e, hit_theta, hit_type = hit_x[ei][mask_hits], hit_y[ei][mask_hits], hit_z[ei][mask_hits], hit_t[ei][mask_hits], hit_e[ei][mask_hits], hit_theta[ei][mask_hits], hit_type[ei][mask_hits]
+
+        hit_x, rs = self.branchToFlatArray(tree["hit_x"], True)
+        hit_y = self.branchToFlatArray(tree["hit_y"])
+        hit_z = self.branchToFlatArray(tree["hit_z"])
+        hit_t = self.branchToFlatArray(tree["hit_t"])
+        hit_e = self.branchToFlatArray(tree["hit_e"])
+        hit_theta = self.branchToFlatArray(tree["hit_theta"])
+        hit_type = self.branchToFlatArray(tree["hit_type"])
+        zerosf = 0. * hit_e
+        hit_e = np.where(hit_e < 0., 0., hit_e)
+        farr = SimpleArray(np.concatenate([
+            hit_e,
+            zerosf,
+            zerosf,  # indicator if it is track or not
+            zerosf,
+            hit_theta,
+            hit_x,
+            hit_y,
+            hit_z,
+            zerosf,
+            hit_t,
+            hit_type
+        ], axis=-1), rs, name="recHitFeatures")  # TODO: add hit_type
+
+        t = {
+            't_idx': [],  # names are optional
+            't_energy': [],
+            't_pos': [],  # three coordinates
+            't_time': [],
+            't_pid': [],  # 6 truth classes
+            't_spectator': [],
+            't_fully_contained': [],
+            't_rec_energy': [],
+            't_is_unique': []
+        }
+
+        # do this with numba
+        # print("Part pids", tree["part_pid"].array().tolist())
+
+        t = truth_loop(hit_genlink.tolist(),
+                       t,
+                       part_p.tolist(),
+                       tree["part_pid"].array().tolist(),
+                       tree["part_theta"].array().tolist(),
+                       tree["part_phi"].array().tolist(),
+                       tree["hit_type"].array().tolist()
+                       )
+
+
+        for k in t.keys():
+            if k == 't_idx' or k == 't_is_unique':
+                t[k] = np.array(t[k], dtype='int32')
+            else:
+                t[k] = np.array(t[k], dtype='float32')
+            t[k] = SimpleArray(t[k], rs, name=k)
+
+        return [farr,
+                t['t_idx'], t['t_energy'], t['t_pos'], t['t_time'],
+                t['t_pid'], t['t_spectator'], t['t_fully_contained'],
+                t['t_rec_energy'], t['t_is_unique']], [], []
+
+    def convertFromSourceFileOld(self, filename, weighterobjects, istraining, treename="events"):
         
         fileTimeOut(filename, 10)#wait 10 seconds for file in case there are hiccups
         tree = uproot.open(filename)[treename]
@@ -286,7 +444,7 @@ class TrainData_fcc(TrainData):
         hit_t = self.branchToFlatArray(tree["hit_t"])
         hit_e = self.branchToFlatArray(tree["hit_e"])
         hit_theta = self.branchToFlatArray(tree["hit_theta"])
-        #hit_type = self.branchToFlatArray(tree["hit_type"])
+        hit_type = self.branchToFlatArray(tree["hit_type"])
         
         zerosf = 0.*hit_e
         
@@ -332,6 +490,7 @@ class TrainData_fcc(TrainData):
                        tree["part_pid"].array().tolist(),
                        tree["part_theta"].array().tolist(),
                        tree["part_phi"].array().tolist(),
+                       tree["hit_type"].array().tolist()
         )
         
         for k in t.keys():
@@ -340,8 +499,7 @@ class TrainData_fcc(TrainData):
             else:
                 t[k] = np.array(t[k], dtype='float32')
             t[k] = SimpleArray(t[k],  rs,name=k)
-        
-        return [farr, 
+        return [farr,
                 t['t_idx'], t['t_energy'], t['t_pos'], t['t_time'], 
                 t['t_pid'], t['t_spectator'], t['t_fully_contained'],
                 t['t_rec_energy'], t['t_is_unique'] ], [], []
