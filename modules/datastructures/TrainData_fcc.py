@@ -97,6 +97,7 @@ def truth_loop(link_list :list,
     for ie in range(nevts):#event
         nhits = len(link_list[ie])
         hit_particle_link = link_list[ie]
+        print("number of hits", nhits)
         hit_type_a = hit_type_list[ie]
         for ih in range(nhits):
             idx = -1
@@ -105,6 +106,7 @@ def truth_loop(link_list :list,
             t_pid = [0.] * (len(particle_ids) + 1) # "other" category
             assert len(t_pid) == len(particle_ids) + 1
             if link_list[ie][ih] >= 0:
+                print(link_list[ie])
                 idx = link_list[ie][ih]
                 mom = part_p_list[ie][idx]
                 particle_id = 0
@@ -362,13 +364,16 @@ class TrainData_fcc(TrainData):
             #print("------", hit_type[ei].shape, hit_genlink[ei].shape, cluster_id, unique_list_particles)
             #print(np.unique(hit_genlink[ei]))
             mask_hits, mask_particles = find_mask_no_energy(hit_genlink[ei], hit_type[ei])
+            mask_hits = ~mask_hits
+            mask_particles = ~mask_particles
             #print("mask hits", mask_hits)
             #print("mask particles", mask_particles)
-            hit_genlink[ei] = cluster_id
-            hit_genlink[ei] = hit_genlink[ei][mask_hits]
-            print(ei)
-            print(mask_particles.shape, mask_particles)
-            print("partp", part_p[ei].shape, "clust_id", cluster_id)
+            clust_id_new, unique_list_particles_new = find_cluster_id(hit_genlink[ei][mask_hits])
+            hit_genlink[ei] = clust_id_new - 1
+            #hit_genlink[ei] = hit_genlink[ei][mask_hits]
+            #print(ei)
+            #print(mask_particles.shape, mask_particles)
+            #print("partp", part_p[ei].shape, "clust_id", cluster_id)
             part_p[ei] = part_p[ei][unique_list_particles][mask_particles]
             part_pid[ei] = part_pid[ei][unique_list_particles][mask_particles]
             part_theta[ei] = part_theta[ei][unique_list_particles][mask_particles]
