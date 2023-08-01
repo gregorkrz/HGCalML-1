@@ -11,6 +11,3 @@ export PATH=$PATH:/afs/cern.ch/work/g/gkrzmanc/pypack
 export PYTHONPATH=$PYTHONPATH:/afs/cern.ch/work/g/gkrzmanc/pypack/
 export LC_ALL=C.UTF-8
 export LANG=C.UTF-8
-
-
-
