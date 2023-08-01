@@ -456,7 +456,7 @@ class TrainData_fcc(TrainData):
         hit_theta = self.branchToFlatArrayNumpy(hit_theta)
         hit_type = self.branchToFlatArrayNumpy(hit_type)
         # convert hit type to onehot
-        hit_type_onehot = np.zeros((hit_type.size, hit_type.max() + 1))
+        hit_type_onehot = np.zeros((hit_type.size, 4))  # fix the number of cat
         hit_type_onehot[np.arange(hit_type.size), hit_type] = 1
         hit_phi = self.branchToFlatArrayNumpy(hit_phi)
 
