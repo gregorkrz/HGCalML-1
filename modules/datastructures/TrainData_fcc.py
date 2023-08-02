@@ -492,9 +492,9 @@ class TrainData_fcc(TrainData):
         # convert hit type to onehot
         print("onehot")
         hit_type_onehot = np.zeros((hit_type.size, 4)).astype(np.float32)  # fix the number of cat
-        print("onehot1")
-        #print(np.unique(hit_type))
-        hit_type_onehot[np.arange(hit_type.size), hit_type.astype(np.int)] = 1.
+        print("onehot2")
+        print("onehot2", hit_type_onehot.shape, hit_type.shape)
+        hit_type_onehot[:, hit_type.astype(np.int)] = 1.
         print("phi")
         hit_phi = self.branchToFlatArrayNumpy(hit_phi)
         hit_x, hit_y, hit_z = spherical_to_cartesian(
