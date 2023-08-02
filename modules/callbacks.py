@@ -28,8 +28,8 @@ class plotDuringTrainingBase(PredictCallback):
         self.outputfile = outputfile
         os.system('mkdir -p '+os.path.dirname(outputfile))
         self.cycle_colors = cycle_colors
-        assert n_keep>0
-        self.n_keep = n_keep-1
+        assert n_keep > 0
+        self.n_keep = n_keep - 1
         self.keep_counter = 0
 
         self.plot_process = None
@@ -313,9 +313,9 @@ class plotClusterSummary(PredictCallback):
                  publish=None,
                  **kwargs):
         self.outputfile = outputfile
-        os.system('mkdir -p '+os.path.dirname(outputfile))
+        os.system('mkdir -p ' + os.path.dirname(outputfile))
         self.publish = publish
-        self.plot_process=None
+        self.plot_process = None
         self.wandb = False
         if "log_wandb" in kwargs:
             self.wandb = kwargs["log_wandb"]
@@ -325,7 +325,7 @@ class plotClusterSummary(PredictCallback):
                                                  use_event=-1, 
                                                  **kwargs)
         
-        self.td=self.td.getSlice(0,min(nevents,self.td.nElements()))
+        self.td = self.td.getSlice(0, min(nevents, self.td.nElements()))
 
 
     def subdict(self, d, sel):
@@ -369,25 +369,36 @@ class plotClusterSummary(PredictCallback):
             eids.append( np.zeros( (rs[i+1,0]-rs[i,0], ) ,dtype='int64') +eid )
             eid+=1
         cdata['eid'] = np.concatenate(eids, axis=0)
-        
+        import matplotlib
+        matplotlib.use('Agg')
+        import matplotlib.pyplot as plt
         pids=[]
         vdtom=[]
         did=[]
+        fig_clusters, ax_clusters = plt.subplots(4, 1, figsize=(10, 20))  # Width: 10, Height: 20
+        c = 0
         for i in range(eid):
-            a,b,pid = self.run_per_event(self.subdict(cdata,i==cdata['eid']))
+            a, b, pid, coords, particle_ids, betas = self.run_per_event(self.subdict(cdata, i == cdata['eid']))
             vdtom.append(a)
             did.append(b)
             pids.append(pid)
-            
+            if c < 4:
+                ax_clusters[c].scatter(coords[:, 0], coords[:, 1], c=particle_ids, s=10, cmap='tab20')
+                ax_clusters[c].set_title('Event ' + str(i))
+                ax_clusters[c].set_xlim(-100, 100)
+                ax_clusters[c].set_ylim(-100, 100)
+            c += 1
         vdtom = np.concatenate(vdtom, axis=0)
         did = np.concatenate(did,axis=0)
         pids = np.concatenate(pids,axis=0)[:,0]
         upids = np.unique(pids).tolist()
         upids.append(0)
-        import matplotlib
-        matplotlib.use('Agg')
-        import matplotlib.pyplot as plt
         print(upids)
+        # plot clustering space
+        fname = self.outputfile + '_clustering_space.pdf'
+        fig_clusters.savefig(fname)
+        if self.wandb:
+            wandb.log({fname: fig_clusters})
         for p in upids:
             svdtom=vdtom
             sdid=did
@@ -404,9 +415,10 @@ class plotClusterSummary(PredictCallback):
             plt.xlabel('normalised distance')
             plt.ylabel('A.U.')
             plt.legend()
-            ccfile=self.outputfile+str(p)+'_cluster.pdf'
+            ccfile = self.outputfile+str(p)+'_cluster.pdf'
+            print("LOGGING THE PLOTS")
             if self.wandb:
-                wandb.log({ccfile: wandb.Image(fig)})
+                wandb.log({ccfile: fig})
             plt.savefig(ccfile)
             plt.yscale('log')
             ccfile=self.outputfile+str(p)+'_cluster_log.pdf'
@@ -418,7 +430,7 @@ class plotClusterSummary(PredictCallback):
      
     def run_per_event(self,data):
             
-        tidx = data['truthHitAssignementIdx'][:,0]# V x 1
+        tidx = data['truthHitAssignementIdx'][:,0]# V x 1  # "particle id"
         utidx = np.unique(tidx)
         
         overflowat=6
@@ -452,7 +464,7 @@ class plotClusterSummary(PredictCallback):
         vtpid = np.concatenate(vtpid,axis=0)
         vdtom = np.concatenate(vdtom,axis=0)
         did = np.concatenate(did,axis=0)
-        return vdtom,did,vtpid
+        return vdtom, did, vtpid, tidx, data["predCCoords"], data["predBeta"]
         
 
 

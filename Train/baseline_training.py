@@ -27,7 +27,7 @@ from DebugLayers import PlotCoordinates
 
 from model_blocks import condition_input, extent_coords_if_needed, create_outputs, re_integrate_to_full_hits
 
-from callbacks import plotClusterSummary
+from callbacks import plotClusterSummary, plotEventDuringTraining
 from argparse import ArgumentParser
 from DeepJetCore.training.DeepJet_callbacks import simpleMetricsCallback
 
@@ -45,8 +45,8 @@ parser.add_argument("--nbatch", "-b", help="batch size", default=10000, type=int
 #loss options:
 loss_options={
     # here and in the following energy = momentum
-    'energy_loss_weight': 1.,
-    'q_min': 1.,
+    'energy_loss_weight': 0.,
+    'q_min': 0.5,
     # addition to original OC, adds average position for clusterin
     # usually 0.5 is a reasonable value to break degeneracies 
     # and keep training smooth enough
@@ -329,7 +329,14 @@ cb += [
         outputfile=train.outputDir + "/clustering/",
         samplefile=train.val_data.getSamplePath(train.val_data.samples[0]),
         after_n_batches=200,
-        log_wandb=True
+        log_wandb=True,
+        on_epoch_end=True,
+        ),
+        plotEventDuringTraining(
+        outputfile=train.outputDir + "/cluster_coords/",
+        samplefile=train.val_data.getSamplePath(train.val_data.samples[0]),
+        after_n_batches=200,
+        on_epoch_end=True,
         )
     ]
 
@@ -337,6 +344,7 @@ cb += [
 
 
 train.change_learning_rate(learningrate)
+
 
 model, history = train.trainModel(nepochs=3,
                                   batchsize=nbatch,

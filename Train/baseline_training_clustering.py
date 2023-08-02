@@ -318,9 +318,10 @@ cb += [
         outputfile=train.outputDir + "/clustering/",
         samplefile=train.val_data.getSamplePath(train.val_data.samples[0]),
         after_n_batches=200,
-        log_wandb=True
-        )
-    ]
+        log_wandb=True,
+        on_epoch_end=True,
+    )
+]
 
 # cb=[]
 
