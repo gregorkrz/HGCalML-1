@@ -475,46 +475,51 @@ class TrainData_fcc(TrainData):
             )
             hit_phi[ei] = hit_phi[ei][mask_no_track]
             hit_genlink[ei] = clust_id_new[mask_no_track]
-
+        print("running branchToFlatArrayNumpy")
         hit_x, rs = self.branchToFlatArrayNumpy(hit_x, True)
+        print("running hit_y")
         hit_y = self.branchToFlatArrayNumpy(hit_y)
+        print("running hit_z")
         hit_z = self.branchToFlatArrayNumpy(hit_z)
+        print("running hit_t")
         hit_t = self.branchToFlatArrayNumpy(hit_t)
+        print("running hit_e")
         hit_e = self.branchToFlatArrayNumpy(hit_e)
+        print("running hit_theta")
         hit_theta = self.branchToFlatArrayNumpy(hit_theta)
+        print("running hit_tpye")
         hit_type = self.branchToFlatArrayNumpy(hit_type)
         # convert hit type to onehot
         hit_type_onehot = np.zeros((hit_type.size, 4))  # fix the number of cat
         #print(np.unique(hit_type))
         hit_type_onehot[np.arange(hit_type.size), hit_type.astype(np.int)] = 1
         hit_phi = self.branchToFlatArrayNumpy(hit_phi)
-
         hit_x, hit_y, hit_z = spherical_to_cartesian(
             hit_theta, hit_phi, 0, normalized=True
         )
-
         zerosf = 0.0 * hit_e
-
         hit_e = np.where(hit_e < 0.0, 0.0, hit_e)
+        print("concatenating")
         farr = SimpleArray(
             np.concatenate(
                 [
-                    hit_e,  # 0
-                    zerosf,  # 1
-                    zerosf,  # 2 #! indicator if it is track or not (maybe we can remove this)
-                    zerosf,  # 3
-                    hit_theta,  # 4
-                    hit_x,  # 5 (5 to 8 are selected as coordinates)
-                    hit_y,  # 6
-                    hit_z,  # 7
-                    zerosf,  # 8
-                    hit_t,  # 9
-                    hit_type_onehot,  # 10 hit type one hot #total input size 12
+                    hit_e.astype(np.float32),  # 0
+                    zerosf.astype(np.float32),  # 1
+                    zerosf.astype(np.float32),  # 2 #! indicator if it is track or not (maybe we can remove this)
+                    zerosf.astype(np.float32),  # 3
+                    hit_theta.astype(np.float32),  # 4
+                    hit_x.astype(np.float32),  # 5 (5 to 8 are selected as coordinates)
+                    hit_y.astype(np.float32),  # 6
+                    hit_z.astype(np.float32),  # 7
+                    zerosf.astype(np.float32),  # 8
+                    hit_t.astype(np.float32),  # 9
+                    hit_type_onehot.astype(np.float32),  # 10 hit type one hot #total input size 12
                 ],
                 axis=-1,
             ),
             rs,
             name="recHitFeatures",
+            dtype="float32"
         )  # TODO: add hit_type
 
         t = {
@@ -531,7 +536,7 @@ class TrainData_fcc(TrainData):
 
         # do this with numba
         # print("Part pids", tree["part_pid"].array().tolist())
-
+        print("Running truth_loop")
         t = truth_loop(hit_genlink, t, part_p, part_pid, part_theta, part_phi, hit_type)
 
         for k in t.keys():
