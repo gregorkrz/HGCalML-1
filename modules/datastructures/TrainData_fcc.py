@@ -487,12 +487,15 @@ class TrainData_fcc(TrainData):
         hit_e = self.branchToFlatArrayNumpy(hit_e)
         print("running hit_theta")
         hit_theta = self.branchToFlatArrayNumpy(hit_theta)
-        print("running hit_tpye")
+        print("running hit_type")
         hit_type = self.branchToFlatArrayNumpy(hit_type)
         # convert hit type to onehot
-        hit_type_onehot = np.zeros((hit_type.size, 4))  # fix the number of cat
+        print("onehot")
+        hit_type_onehot = np.zeros((hit_type.size, 4)).astype(np.float32)  # fix the number of cat
+        print("onehot1")
         #print(np.unique(hit_type))
-        hit_type_onehot[np.arange(hit_type.size), hit_type.astype(np.int)] = 1
+        hit_type_onehot[np.arange(hit_type.size), hit_type.astype(np.int)] = 1.
+        print("phi")
         hit_phi = self.branchToFlatArrayNumpy(hit_phi)
         hit_x, hit_y, hit_z = spherical_to_cartesian(
             hit_theta, hit_phi, 0, normalized=True
