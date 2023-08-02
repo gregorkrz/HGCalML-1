@@ -132,7 +132,7 @@ def truth_loop(
             t_pid = [0.0] * (len(particle_ids) + 1)  # "other" category
             assert len(t_pid) == len(particle_ids) + 1
             if link_list[ie][ih] >= 0:
-                idx = link_list[ie][ih]
+                idx = link_list[ie][ih] - 1
                 mom = part_p_list[ie][idx]
                 particle_id = 0
                 if (part_pid_list[ie][idx]) in particle_ids:
