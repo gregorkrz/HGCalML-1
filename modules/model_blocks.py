@@ -34,6 +34,34 @@ def extent_coords_if_needed(
 
 
 # new format!
+def create_outputs_condensation_only(
+    x,
+    n_ccoords=3,
+    n_classes=n_id_classes,
+    n_pos=2,
+    fix_distance_scale=True,
+    name_prefix="output_module",
+):
+    """
+    returns pred_beta, pred_ccoords, pred_energy, pred_energy_low_quantile,pred_energy_high_quantile,pred_pos, pred_time, pred_id
+    """
+    if not fix_distance_scale:
+        print("warning: fix_distance_scale=False can lead to issues.")
+
+    pred_beta = Dense(1, activation="sigmoid", name=name_prefix + "_beta")(x)
+    pred_ccoords = Dense(
+        n_ccoords, use_bias=False, name=name_prefix + "_clustercoords"
+    )(
+        x
+    )  # bias has no effect
+
+    return (
+        pred_beta,
+        pred_ccoords
+    )
+
+
+# new format!
 def create_outputs(
     x,
     n_ccoords=3,
@@ -123,6 +151,66 @@ def create_outputs(
 
 
 from GravNetLayersRagged import MultiBackScatterOrGather
+
+def re_integrate_to_full_hits_clusteronly(
+    pre_selection,
+    pred_ccoords,
+    pred_beta,
+    pred_pfc_idx=None,
+    is_preselected_dataset=False,
+    dict_output=True,
+):
+
+    assert dict_output  # only dict output
+    """
+    To be called after OC loss is applied to pre-selected outputs to bring it all back to the full dimensionality
+    all hits that have been selected before and cannot be backgathered will be assigned coordinates far away,
+    and a zero beta value.
+    
+    This is the counterpart of the pre_selection_model_full.
+    
+    returns full suite
+    ('pred_beta', pred_beta), 
+    ('pred_ccoords', pred_ccoords),
+    ('row_splits', row_splits)
+    """
+    from globals import cluster_space as cs
+
+    # this is only true if the preselection is run in situ - no preselected data set
+    if "scatterids" in pre_selection.keys():
+        scatterids = pre_selection["scatterids"]
+        pred_ccoords = MultiBackScatterOrGather(default=cs.noise_coord)(
+            [pred_ccoords, scatterids]
+        )  # set it far away for noise
+        pred_beta = MultiBackScatterOrGather(default=0.0)([pred_beta, scatterids])
+        rechit_energy = ScalarMultiply(0.0)(pred_beta)  # FIXME, will duplicate.
+
+    row_splits = None
+    if is_preselected_dataset:
+        row_splits = pre_selection["row_splits"]
+        rechit_energy = pre_selection["rechit_energy"]
+    else:
+        row_splits = pre_selection["orig_row_splits"]
+        rechit_energy = pre_selection[
+            "rechit_energy"
+        ]  # FIXME if not included here, return statement will fail, probably should be moved outside of if-statement
+
+    ret_dict = {
+        "pred_beta": pred_beta,
+        "pred_ccoords": pred_ccoords,
+        "rechit_energy": rechit_energy,  # can also be summed if pre-selection
+        "row_splits": row_splits,
+    }
+
+    if pred_pfc_idx is not None:
+        if "scatterids" in pre_selection.keys():
+            scatterids = pre_selection["scatterids"]
+            pred_pfc_idx = MultiBackScatterOrGather(default=-1)(
+                [pred_pfc_idx, scatterids]
+            )
+        ret_dict.update({"pred_pfc_idx": pred_pfc_idx})
+
+    return ret_dict
 
 
 def re_integrate_to_full_hits(
