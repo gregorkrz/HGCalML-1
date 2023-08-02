@@ -16,7 +16,7 @@ from plotting_tools import publish, shuffle_truth_colors
 from DebugLayers import _DebugPlotBase
 from DeepJetCore import TrainData
 from DeepJetCore.dataPipeline import TrainDataGenerator
-       
+import wandb
        
 class plotDuringTrainingBase(PredictCallback):
     def __init__(self,
@@ -316,7 +316,11 @@ class plotClusterSummary(PredictCallback):
         os.system('mkdir -p '+os.path.dirname(outputfile))
         self.publish = publish
         self.plot_process=None
-        super(plotClusterSummary, self).__init__(function_to_apply=self.make_plot, 
+        self.wandb = False
+        if "log_wandb" in kwargs:
+            self.wandb = kwargs["log_wandb"]
+            del kwargs["log_wandb"]
+        super(plotClusterSummary, self).__init__(function_to_apply=self.make_plot,
                                                  batchsize=1,
                                                  use_event=-1, 
                                                  **kwargs)
@@ -401,6 +405,8 @@ class plotClusterSummary(PredictCallback):
             plt.ylabel('A.U.')
             plt.legend()
             ccfile=self.outputfile+str(p)+'_cluster.pdf'
+            if self.wandb:
+                wandb.log({ccfile: wandb.Image(fig)})
             plt.savefig(ccfile)
             plt.yscale('log')
             ccfile=self.outputfile+str(p)+'_cluster_log.pdf'

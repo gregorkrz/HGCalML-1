@@ -273,7 +273,7 @@ if not train.modelSet():
     train.compileModel(learningrate=1e-4)
 
     train.keras_model.summary()
-    wandb.watch(train.keras_model, log="all", log_freq=100)
+    #wandb.watch(train.keras_model, log="all", log_freq=100)
 
 
 verbosity = 2
@@ -313,13 +313,14 @@ simpleMetricsCallback(
 cb = [wandbCallback()]
 
 
-"""cb += [
+cb += [
     plotClusterSummary(
         outputfile=train.outputDir + "/clustering/",
         samplefile=train.val_data.getSamplePath(train.val_data.samples[0]),
-        after_n_batches=200
+        after_n_batches=200,
+        log_wandb=True
         )
-    ]"""
+    ]
 
 # cb=[]
 

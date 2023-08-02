@@ -241,11 +241,10 @@ def gravnet_model(Inputs,
          input_list['t_rec_energy'],
          input_list['t_is_unique'],
          input_list['row_splits']])
-                                         
+
     # fast feedback
     pred_ccoords = PlotCoordinates(plot_every=plot_debug_every, outdir = debug_outdir,
-                    name='condensation_coords')([pred_ccoords, pred_beta,input_list['t_idx'],
-                                          rs])                                    
+                    name='condensation_coords')([pred_ccoords, pred_beta,input_list['t_idx'], rs])
 
     # just to have a defined output, only adds names
     model_outputs = re_integrate_to_full_hits(
@@ -285,7 +284,7 @@ if not train.modelSet():
     train.compileModel(learningrate=1e-4)
     
     train.keras_model.summary()
-    wandb.watch(train.keras_model, log="all", log_freq=100)
+    #wandb.watch(train.keras_model, log="all", log_freq=100)
     
 
 verbosity = 2
@@ -325,13 +324,14 @@ cb = [
 ]
 
 
-'''cb += [
+cb += [
     plotClusterSummary(
         outputfile=train.outputDir + "/clustering/",
         samplefile=train.val_data.getSamplePath(train.val_data.samples[0]),
-        after_n_batches=200
+        after_n_batches=200,
+        log_wandb=True
         )
-    ]'''
+    ]
 
 #cb=[]
 
