@@ -21,7 +21,7 @@ from DeepJetCore.DJCLayers import StopGradient
 from Layers import RaggedGlobalExchange, DistanceWeightedMessagePassing, DictModel
 from Layers import RaggedGravNet, ScaledGooeyBatchNorm2 
 from Regularizers import AverageDistanceRegularizer
-from LossLayers import LLFullObjectCondensation, LLFillSpace
+from LossLayers import LLFullObjectCondensation, LLFillSpace, LLKnnSimpleObjectCondensation
 from wandb_callback import wandbCallback
 from DebugLayers import PlotCoordinates
 
@@ -44,24 +44,15 @@ parser.add_argument("--lr", "-lr", help="learning rate", default=0.0001, type=fl
 #parser.add_argument('outputDir')
 
 #loss options:
-loss_options={
+loss_options = {
     # here and in the following energy = momentum
-    'energy_loss_weight': 0.,
-    'q_min': 3.0,
     # addition to original OC, adds average position for clusterin
     # usually 0.5 is a reasonable value to break degeneracies 
     # and keep training smooth enough
-    'use_average_cc_pos': 0.5, 
-    'classification_loss_weight':0.0,
-    'position_loss_weight':0.,
-    'timing_loss_weight':0.,
-    'beta_loss_scale':1.,
-    # these weights will downweight low energies, for a 
+    # these weights will downweight low energies, for a
     # training sample with a good energy distribution,
     # this won't be needed.
-    'use_energy_weights': False,
     # this is the standard repulsive hinge loss from the paper
-    'implementation': 'hinge' 
     }
 
 
@@ -220,7 +211,7 @@ def gravnet_model(Inputs,
     pred_pos, pred_time, pred_time_unc, pred_id = create_outputs(x, n_ccoords=n_cluster_space_coordinates)
     
     # loss
-    pred_beta = LLFullObjectCondensation(scale=1.,
+    pred_beta = LLKnnSimpleObjectCondensation(scale=1.,
                                          record_metrics=True,
                                          print_loss=True,
                                          name="FullOCLoss",
@@ -242,10 +233,15 @@ def gravnet_model(Inputs,
          input_list['t_rec_energy'],
          input_list['t_is_unique'],
          input_list['row_splits']])
-
     # fast feedback
     pred_ccoords = PlotCoordinates(plot_every=plot_debug_every, outdir = debug_outdir,
                     name='condensation_coords')([pred_ccoords, pred_beta,input_list['t_idx'], rs])
+
+    pred_ccoords = LLFillSpace(maxhits=1000, runevery=1,
+                          scale=0.01,
+                          record_metrics=True,
+                          print_loss=True,
+                          print_batch_time=True)([pred_ccoords, rs, input_list['t_idx']])
 
     # just to have a defined output, only adds names
     model_outputs = re_integrate_to_full_hits(
