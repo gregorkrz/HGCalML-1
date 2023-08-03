@@ -21,7 +21,7 @@ from DeepJetCore.DJCLayers import StopGradient
 from Layers import RaggedGlobalExchange, DistanceWeightedMessagePassing, DictModel
 from Layers import RaggedGravNet, ScaledGooeyBatchNorm2 
 from Regularizers import AverageDistanceRegularizer
-from LossLayers import LLFullObjectCondensation
+from LossLayers import LLFullObjectCondensation, LLFillSpace, LLKnnSimpleObjectCondensation
 from wandb_callback import wandbCallback
 from DebugLayers import PlotCoordinates
 
@@ -36,14 +36,15 @@ parser = ArgumentParser('Run the training')
 #parser.add_argument("input_dataset")
 #parser.add_argument("output_dir")
 parser.add_argument("--interactive", help="prints output to screen", default=False, action="store_true")
-parser.add_argument("--run_name", "-name", help="wandb run name", default="HGCalML-1 baseline training")
+parser.add_argument("--run_name", "-name", help="wandb run name", default="")
 parser.add_argument("--epochs", "-e", help="wandb run name", default=500, type=int)
 parser.add_argument("--nbatch", "-b", help="batch size", default=10000, type=int)
+parser.add_argument("--lr", "-lr", help="learning rate", default=0.0001, type=float)
 #parser.add_argument('inputDataCollection')
 #parser.add_argument('outputDir')
 
 #loss options:
-loss_options={
+loss_options = {
     # here and in the following energy = momentum
     'energy_loss_weight': 0.,
     'q_min': 0.5,
@@ -51,10 +52,10 @@ loss_options={
     # usually 0.5 is a reasonable value to break degeneracies 
     # and keep training smooth enough
     'use_average_cc_pos': 0.5, 
-    'classification_loss_weight':0.0,
-    'position_loss_weight':0.,
-    'timing_loss_weight':0.,
-    'beta_loss_scale':1.,
+    'classification_loss_weight': 0.0,
+    'position_loss_weight': 0.,
+    'timing_loss_weight': 0.,
+    'beta_loss_scale': 1.,
     # these weights will downweight low energies, for a 
     # training sample with a good energy distribution,
     # this won't be needed.
@@ -71,9 +72,9 @@ dense_activation='elu'
 record_frequency=10
 # plot every M times, metrics were recorded. In other words, 
 # plotting will happen every M*N batches
-plotfrequency=50 
+plotfrequency=50
 
-learningrate = 1e-4
+
 
 # this is the maximum number of hits (points) per batch,
 # not the number of events (samples). This is safer w.r.t. 
@@ -146,7 +147,7 @@ def gravnet_model(Inputs,
         x = Dense(64,activation=dense_activation)(x)
         x = Concatenate()([c_coords,x]) #give a good starting point
         x = ScaledGooeyBatchNorm2()(x)
-        
+
         xgn, gncoords, gnnidx, gndist = RaggedGravNet(n_neighbours=n_neighbours[i],
                                                  n_dimensions=n_gravnet_dims,
                                                  n_propagate=64, #this is the number of features that are exchanged
@@ -219,7 +220,7 @@ def gravnet_model(Inputs,
     pred_pos, pred_time, pred_time_unc, pred_id = create_outputs(x, n_ccoords=n_cluster_space_coordinates)
     
     # loss
-    pred_beta = LLFullObjectCondensation(scale=1.,
+    pred_beta = LLKnnSimpleObjectCondensation(scale=1.,
                                          record_metrics=True,
                                          print_loss=True,
                                          name="FullOCLoss",
@@ -241,10 +242,15 @@ def gravnet_model(Inputs,
          input_list['t_rec_energy'],
          input_list['t_is_unique'],
          input_list['row_splits']])
-
     # fast feedback
     pred_ccoords = PlotCoordinates(plot_every=plot_debug_every, outdir = debug_outdir,
                     name='condensation_coords')([pred_ccoords, pred_beta,input_list['t_idx'], rs])
+
+    pred_ccoords = LLFillSpace(maxhits=1000, runevery=1,
+                          scale=0.01,
+                          record_metrics=True,
+                          print_loss=True,
+                          print_batch_time=True)([pred_ccoords, rs, input_list['t_idx']])
 
     # just to have a defined output, only adds names
     model_outputs = re_integrate_to_full_hits(
@@ -268,9 +274,13 @@ import training_base_hgcal
 train = training_base_hgcal.HGCalTraining(parser=parser)
 
 args = train.args
-wandb.init(project="hgcalml-1", tags=["debug", "small_dataset"], name=args.run_name)
-wandb.run.log_code(".")
-wandb.config["args"] = vars(args)
+learningrate=args.lr
+print("LR=", learningrate)
+
+if args.run_name != "":
+    wandb.init(project="hgcalml-1", tags=["debug", "small_dataset"], name=args.run_name)
+    wandb.run.log_code(".")
+    wandb.config["args"] = vars(args)
 nbatch = args.nbatch
 
 
@@ -279,7 +289,7 @@ if not train.modelSet():
                    td=train.train_data.dataclass(),
                    debug_outdir=train.outputDir+'/intplots')
     
-    train.setCustomOptimizer(tf.keras.optimizers.Nadam(clipnorm=1.,epsilon=1e-2))
+    train.setCustomOptimizer(tf.keras.optimizers.Nadam(clipnorm=1., epsilon=1e-2))
     #
     train.compileModel(learningrate=1e-4)
     
@@ -319,36 +329,67 @@ simpleMetricsCallback(
     publish=publishpath #no additional directory here (scp cannot create one)
     ),
 '''
+
+
 cb = [
-    wandbCallback()
+    plotClusterSummary(
+        outputfile=train.outputDir + "/clustering/",
+        samplefile=train.train_data.getSamplePath(train.train_data.samples[0]),
+        log_wandb=True,
+        on_epoch_end=True,
+    ),
+    plotEventDuringTraining(
+        outputfile=train.outputDir + "/cluster_coords/0/",
+        samplefile=train.train_data.getSamplePath(train.train_data.samples[0]),
+        on_epoch_end=True,
+    ),
+    plotEventDuringTraining(
+        outputfile=train.outputDir + "/cluster_coords/1/",
+        samplefile=train.train_data.getSamplePath(train.train_data.samples[0]),
+        on_epoch_end=True,
+        use_event=1
+    ),
+    plotEventDuringTraining(
+        outputfile=train.outputDir + "/cluster_coords/2/",
+        samplefile=train.train_data.getSamplePath(train.train_data.samples[0]),
+        on_epoch_end=True,
+        use_event=2
+    ),
+plotEventDuringTraining(
+        outputfile=train.outputDir + "/cluster_coords/3/",
+        samplefile=train.train_data.getSamplePath(train.train_data.samples[0]),
+        on_epoch_end=True,
+        use_event=3
+    )
 ]
 
 
-cb += [
-    plotClusterSummary(
-        outputfile=train.outputDir + "/clustering/",
-        samplefile=train.val_data.getSamplePath(train.val_data.samples[0]),
-        after_n_batches=200,
-        log_wandb=True,
-        on_epoch_end=True,
-        ),
-        plotEventDuringTraining(
+if args.run_name:
+    cb += [wandbCallback()]
+
+
+#cb=[]
+'''plotEventDuringTraining(
         outputfile=train.outputDir + "/cluster_coords/",
         samplefile=train.val_data.getSamplePath(train.val_data.samples[0]),
         after_n_batches=200,
         on_epoch_end=True,
         )
-    ]
+]'''
 
-#cb=[]
+# FOR DEBUGGING
+for i in range(len(cb) - 1):
+    cb[i].model = train.keras_model
+    print("Calling callback", i, " (before training the model further)")
+    cb[i].predict_and_call(1)
 
-
-train.change_learning_rate(learningrate)
 
 
 model, history = train.trainModel(nepochs=3,
                                   batchsize=nbatch,
                                   additional_callbacks=cb)
+
+train.change_learning_rate(learningrate)
 
 print("freeze BN")
 # Note the submodel here its not just train.keras_model

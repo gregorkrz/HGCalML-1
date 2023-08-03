@@ -250,8 +250,7 @@ def gravnet_model(Inputs, td, debug_outdir=None,
                                scale=0.01,
                                record_metrics=True,
                                print_loss=True,
-                               print_batch_time=True)([pred_ccoords, rs, 
-                                                                       pre_selection['t_idx']])
+                               print_batch_time=True)([pred_ccoords, rs, pre_selection['t_idx']])
 
 
     # loss

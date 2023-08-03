@@ -5,7 +5,7 @@ import numpy as np
 import tensorflow as tf
 
 from OCHits2Showers import process_endcap, OCGatherEnergyCorrFac
-from datastructures import TrainData_NanoML
+from datastructures import TrainData_NanoML, TrainData_fcc
 import os
 
 import plotly.express as px
@@ -123,6 +123,157 @@ class plotClusteringDuringTraining(plotDuringTrainingBase):
             raise e
 
 
+class plotClusterSummary(PredictCallback):
+    def __init__(self,
+                 outputfile="",
+                 nevents=20,
+                 publish=None,
+                 **kwargs):
+        self.outputfile = outputfile
+        os.system('mkdir -p ' + os.path.dirname(outputfile))
+        self.publish = publish
+        self.plot_process = None
+        self.wandb = False
+        if "log_wandb" in kwargs:
+            self.wandb = kwargs["log_wandb"]
+            del kwargs["log_wandb"]
+        super(plotClusterSummary, self).__init__(function_to_apply=self.make_plot,
+                                                 batchsize=1,
+                                                 use_event=-1,
+                                                 **kwargs)
+
+        self.td = self.td.getSlice(0, min(nevents, self.td.nElements()))
+
+    def subdict(self, d, sel):
+        o = {}
+        for k in d.keys():
+            o[k] = d[k][sel]
+        return o
+
+    def make_plot(self, counter, feat, predicted, truth):
+        if self.plot_process is not None:
+            self.plot_process.join(60)  # safety margin to not block training if plotting took too long
+            try:
+                self.plot_process.terminate()  # got enough time
+            except:
+                pass
+
+        self.plot_process = Process(target=self._make_plot, args=(counter, feat, predicted, truth))
+        self.plot_process.start()
+
+    def _make_plot(self, counter, feat, predicted, truth):
+
+        td = TrainData_NanoML()
+        preddict = predicted
+        rs = feat[-1]
+
+        if 'sel_idx' in predicted.keys():
+            feat = [tf.gather_nd(f, predicted['sel_idx']).numpy() for f in feat if len(f.shape) > 1]
+
+        cdata = td.createTruthDict(feat)
+        cdata['predBeta'] = preddict['pred_beta']
+        cdata['predCCoords'] = preddict['pred_ccoords']
+        cdata['predD'] = preddict['pred_dist']
+        # last one has to be row splits
+        # this will not work, since it will be adapted by batch, and not anymore the right tow splits
+        # rs = preddict['row_splits']
+
+        eid = 0
+        eids = []
+        # make event id
+        for i in range(len(rs) - 1):
+            eids.append(np.zeros((rs[i + 1, 0] - rs[i, 0],), dtype='int64') + eid)
+            eid += 1
+        cdata['eid'] = np.concatenate(eids, axis=0)
+
+        pids = []
+        vdtom = []
+        did = []
+        for i in range(eid):
+            a, b, pid = self.run_per_event(self.subdict(cdata, i == cdata['eid']))
+            vdtom.append(a)
+            did.append(b)
+            pids.append(pid)
+
+        vdtom = np.concatenate(vdtom, axis=0)
+        did = np.concatenate(did, axis=0)
+        pids = np.concatenate(pids, axis=0)[:, 0]
+        upids = np.unique(pids).tolist()
+        upids.append(0)
+        import matplotlib
+        matplotlib.use('Agg')
+        import matplotlib.pyplot as plt
+        print(upids)
+        for p in upids:
+            svdtom = vdtom
+            sdid = did
+            if p:
+                svdtom = vdtom[pids == p]
+                sdid = did[pids == p]
+
+            if not len(svdtom):
+                continue
+
+            fig = plt.figure()
+            plt.hist(svdtom, bins=51, color='tab:blue', alpha=0.5, label='same')
+            plt.hist(sdid, bins=51, color='tab:orange', alpha=0.5, label='other')
+            plt.xlabel('normalised distance')
+            plt.ylabel('A.U.')
+            plt.legend()
+            ccfile = self.outputfile + str(p) + '_cluster.pdf'
+            if self.wandb:
+                wandb.log({ccfile: wandb.Image(fig)})
+            plt.savefig(ccfile)
+            plt.yscale('log')
+            ccfile = self.outputfile + str(p) + '_cluster_log.pdf'
+            plt.cla()
+            plt.clf()
+            plt.close(fig)
+            if self.publish is not None:
+                publish(ccfile, self.publish)
+
+    def run_per_event(self, data):
+
+        tidx = data['truthHitAssignementIdx'][:, 0]  # V x 1
+        utidx = np.unique(tidx)
+
+        overflowat = 6
+
+        vtpid = []
+        vdtom = []
+        did = []
+        for uidx in utidx:
+            if uidx < 0:
+                continue
+            thiscoords, thisbeta, thisdist = data['predCCoords'][tidx == uidx], data['predBeta'][tidx == uidx], \
+            data['predD'][tidx == uidx]
+            ak = np.argmax(thisbeta)
+            coords_ak = thiscoords[ak]
+            dist_ak = thisdist[ak]
+
+            pid = np.abs(data['truthHitAssignedPIDs'][tidx == uidx])
+
+            dtom = np.sqrt(np.sum((thiscoords - coords_ak) ** 2, axis=-1)) / (np.abs(dist_ak) + 1e-3)
+            dtom[dtom > overflowat] = overflowat
+            # dtom = np.expand_dims(dtom,axis=1)
+            dother = np.sqrt(np.sum((data['predCCoords'][tidx != uidx] - coords_ak) ** 2, axis=-1)) / (
+                        np.abs(dist_ak) + 1e-3)
+
+            dother[dother > overflowat] = overflowat
+            # dother = np.expand_dims(dother,axis=1)
+            dother = dother[
+                np.random.choice(len(dother), size=int(min(len(dother), len(dtom))), replace=False)]  # restrict
+
+            vtpid.append(pid)
+            vdtom.append(dtom)
+            did.append(dother)
+
+        vtpid = np.concatenate(vtpid, axis=0)
+        vdtom = np.concatenate(vdtom, axis=0)
+        did = np.concatenate(did, axis=0)
+        return vdtom, did, vtpid
+
+
 class plotEventDuringTraining(plotDuringTrainingBase):
     def __init__(self,
                  beta_threshold=0.01,
@@ -144,7 +295,7 @@ class plotEventDuringTraining(plotDuringTrainingBase):
              pred_time, 
              pred_id
             '''
-            td = TrainData_NanoML()#contains all dicts
+            td = TrainData_fcc()#contains all dicts
             #row splits not needed
             feats = td.createFeatureDict(feat,addxycomb=False)
             truths = td.createTruthDict(feat)
@@ -200,8 +351,15 @@ class plotEventDuringTraining(plotDuringTrainingBase):
             for k in data.keys():
                 data[k] = data[k][removednoise]
             
-            
-            df = pd.DataFrame (np.concatenate([data[k] for k in data],axis=1), columns = [k for k in data])
+            keys = []
+            for k in data:
+                for s in range(data[k].shape[1]):
+                    if s > 0:
+                        keys.append(k + "_" + str(s))
+                    else:
+                        keys.append(k)
+            print(len(data), data.keys(), np.concatenate([data[k] for k in data],axis=1).shape, [data[k].shape for k in data])
+            df = pd.DataFrame (np.concatenate([data[k] for k in data],axis=1), columns = keys)
             
             #fig = px.scatter_3d(df, x="recHitX", y="recHitZ", z="recHitY", color="truthHitAssignementIdx", size="recHitLogEnergy")
             #fig.write_html(self.outputfile + str(self.keep_counter) + "_truth.html")
@@ -303,169 +461,9 @@ class plotEventDuringTraining(plotDuringTrainingBase):
         
         if self.publish is not None:
             publish(ccfile, self.publish)
-        
-        
-            
-class plotClusterSummary(PredictCallback):        
-    def __init__(self,
-                 outputfile="",
-                 nevents=20,
-                 publish=None,
-                 **kwargs):
-        self.outputfile = outputfile
-        os.system('mkdir -p ' + os.path.dirname(outputfile))
-        self.publish = publish
-        self.plot_process = None
-        self.wandb = False
-        if "log_wandb" in kwargs:
-            self.wandb = kwargs["log_wandb"]
-            del kwargs["log_wandb"]
-        super(plotClusterSummary, self).__init__(function_to_apply=self.make_plot,
-                                                 batchsize=1,
-                                                 use_event=-1, 
-                                                 **kwargs)
-        
-        self.td = self.td.getSlice(0, min(nevents, self.td.nElements()))
 
 
-    def subdict(self, d, sel):
-        o={}
-        for k in d.keys():
-            o[k] = d[k][sel]
-        return o
-    
-    def make_plot(self, counter, feat, predicted, truth):
-        if self.plot_process is not None:
-            self.plot_process.join(60)#safety margin to not block training if plotting took too long
-            try:
-                self.plot_process.terminate()#got enough time
-            except:
-                pass
 
-        self.plot_process = Process(target=self._make_plot, args=(counter, feat, predicted, truth))
-        self.plot_process.start()
-        
-    def _make_plot(self, counter, feat, predicted, truth):
-        
-        td = TrainData_NanoML()
-        preddict=predicted
-        rs = feat[-1]
-        
-        if 'sel_idx' in predicted.keys():
-            feat = [tf.gather_nd(f, predicted['sel_idx']).numpy() for f in feat if len(f.shape)>1]
-        
-        cdata=td.createTruthDict(feat)
-        cdata['predBeta'] = preddict['pred_beta']
-        cdata['predCCoords'] = preddict['pred_ccoords']
-        cdata['predD'] = preddict['pred_dist']
-        #last one has to be row splits
-        # this will not work, since it will be adapted by batch, and not anymore the right tow splits
-        #rs = preddict['row_splits']
-        
-        eid=0
-        eids=[]
-        #make event id
-        for i in range(len(rs)-1):
-            eids.append( np.zeros( (rs[i+1,0]-rs[i,0], ) ,dtype='int64') +eid )
-            eid+=1
-        cdata['eid'] = np.concatenate(eids, axis=0)
-        import matplotlib
-        matplotlib.use('Agg')
-        import matplotlib.pyplot as plt
-        pids=[]
-        vdtom=[]
-        did=[]
-        fig_clusters, ax_clusters = plt.subplots(4, 1, figsize=(10, 20))  # Width: 10, Height: 20
-        c = 0
-        for i in range(eid):
-            a, b, pid, coords, particle_ids, betas = self.run_per_event(self.subdict(cdata, i == cdata['eid']))
-            vdtom.append(a)
-            did.append(b)
-            pids.append(pid)
-            if c < 4:
-                ax_clusters[c].scatter(coords[:, 0], coords[:, 1], c=particle_ids, s=10, cmap='tab20')
-                ax_clusters[c].set_title('Event ' + str(i))
-                ax_clusters[c].set_xlim(-100, 100)
-                ax_clusters[c].set_ylim(-100, 100)
-            c += 1
-        vdtom = np.concatenate(vdtom, axis=0)
-        did = np.concatenate(did,axis=0)
-        pids = np.concatenate(pids,axis=0)[:,0]
-        upids = np.unique(pids).tolist()
-        upids.append(0)
-        print(upids)
-        # plot clustering space
-        fname = self.outputfile + '_clustering_space.pdf'
-        fig_clusters.savefig(fname)
-        if self.wandb:
-            wandb.log({fname: fig_clusters})
-        for p in upids:
-            svdtom=vdtom
-            sdid=did
-            if p:
-                svdtom=vdtom[pids==p]
-                sdid=did[pids==p]
-
-            if not len(svdtom):
-                continue
-            
-            fig = plt.figure()
-            plt.hist(svdtom,bins=51,color='tab:blue',alpha = 0.5,label='same')
-            plt.hist(sdid,bins=51,color='tab:orange',alpha = 0.5,label='other')
-            plt.xlabel('normalised distance')
-            plt.ylabel('A.U.')
-            plt.legend()
-            ccfile = self.outputfile+str(p)+'_cluster.pdf'
-            print("LOGGING THE PLOTS")
-            if self.wandb:
-                wandb.log({ccfile: fig})
-            plt.savefig(ccfile)
-            plt.yscale('log')
-            ccfile=self.outputfile+str(p)+'_cluster_log.pdf'
-            plt.cla()
-            plt.clf()
-            plt.close(fig)
-            if self.publish is not None:
-                publish(ccfile, self.publish)
-     
-    def run_per_event(self,data):
-            
-        tidx = data['truthHitAssignementIdx'][:,0]# V x 1  # "particle id"
-        utidx = np.unique(tidx)
-        
-        overflowat=6
-        
-        vtpid=[]
-        vdtom = []
-        did = []
-        for uidx in utidx:
-            if uidx < 0:
-                continue
-            thiscoords,thisbeta,thisdist = data['predCCoords'][tidx==uidx],data['predBeta'][tidx==uidx],data['predD'][tidx==uidx]
-            ak = np.argmax(thisbeta)
-            coords_ak = thiscoords[ak]
-            dist_ak = thisdist[ak]
-            
-            pid = np.abs(data['truthHitAssignedPIDs'][tidx==uidx])
-            
-            dtom = np.sqrt(np.sum( (thiscoords-coords_ak)**2, axis=-1)) / (np.abs(dist_ak)+1e-3)
-            dtom[dtom>overflowat]=overflowat
-            #dtom = np.expand_dims(dtom,axis=1)
-            dother =  np.sqrt(np.sum((data['predCCoords'][tidx!=uidx]-coords_ak )**2,axis=-1))/ (np.abs(dist_ak)+1e-3)
-            
-            dother[dother>overflowat]=overflowat
-            #dother = np.expand_dims(dother,axis=1)
-            dother = dother[np.random.choice(len(dother), size=int(min(len(dother), len(dtom))), replace=False)]#restrict
-            
-            vtpid.append(pid)
-            vdtom.append(dtom)
-            did.append(dother)
-        
-        vtpid = np.concatenate(vtpid,axis=0)
-        vdtom = np.concatenate(vdtom,axis=0)
-        did = np.concatenate(did,axis=0)
-        return vdtom, did, vtpid, tidx, data["predCCoords"], data["predBeta"]
-        
 
 
 class plotGravNetCoordsDuringTraining(plotDuringTrainingBase):
