@@ -16,7 +16,7 @@ BATCHNORM_OPTIONS = {
 
 # Configuration for training
 DENSE_ACTIVATION='elu' #layernorm #'elu'
-LEARNINGRATE = 1e-2
+LEARNINGRATE = 1e-4
 NBATCH = 100000#200000
 DENSE_REGULARIZER = None
 
