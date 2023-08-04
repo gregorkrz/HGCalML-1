@@ -497,9 +497,9 @@ class TrainData_fcc(TrainData):
         hit_type_onehot[:, hit_type.astype(np.int)] = 1.
         print("phi")
         hit_phi = self.branchToFlatArrayNumpy(hit_phi)
-        hit_x, hit_y, hit_z = spherical_to_cartesian(
-            hit_theta, hit_phi, 0, normalized=True
-        )
+        # hit_x, hit_y, hit_z = spherical_to_cartesian(
+        #     hit_theta, hit_phi, 0, normalized=True
+        # )
         zerosf = 0.0 * hit_e
         hit_e = np.where(hit_e < 0.0, 0.0, hit_e)
         print("concatenating")
