@@ -154,14 +154,14 @@ def gravnet_model(Inputs, td, debug_outdir=None, plot_debug_every=10):
     ############################################################################
 
     pre_selection = td.interpretAllModelInputs(Inputs, returndict=True)
-    tf.print("INPUTS SHAPE", {key: Inputs[key].shape for key in Inputs})
-    tf.print("PRE-SELECTION SHAPE", {key: Inputs[key].shape for key in pre_selection})
+    #tf.print("INPUTS SHAPE", {key: Inputs[key].shape for key in Inputs})
+    #tf.print("PRE-SELECTION SHAPE", {key: Inputs[key].shape for key in pre_selection})
     pre_selection = condition_input(pre_selection, no_scaling=True)
-    trans, pre_selection = tiny_pc_pool(
-        pre_selection,
-        record_metrics=True,
-        #trainable=True
-        )#train in one go.. what is up with the weight loading?
+    #trans, pre_selection = tiny_pc_pool(
+    #    pre_selection,
+    #    record_metrics=True,
+    #    #trainable=True
+    #    )#train in one go.. what is up with the weight loading?
 
     #just for info what's available
     print('available pre-selection outputs',list(pre_selection.keys()))
@@ -348,11 +348,11 @@ def gravnet_model(Inputs, td, debug_outdir=None, plot_debug_every=10):
             'pred_dist': pred_dist,
             'rechit_energy': energy,
             'row_splits': pre_selection['row_splits'], #are these the selected ones or not?
-            'no_noise_sel': trans['sel_idx_up'],
-            'no_noise_rs': trans['rs_down'], #unclear what that actually means?
+            #'no_noise_sel': trans['sel_idx_up'],
+            #'no_noise_rs': trans['rs_down'], #unclear what that actually means?
             # 'noise_backscatter': pre_selection['noise_backscatter'],
             }
-    tf.print("MODEL OUTPUTS SHAPE", {k: v.shape for k, v in model_outputs.items()})
+   # #tf.print("MODEL OUTPUTS SHAPE", {k: v.shape for k, v in model_outputs.items()})
     return DictModel(inputs=Inputs, outputs=model_outputs)
 
 
