@@ -10,6 +10,8 @@ import pickle
 import pandas as pd
 import pdb
 
+NORMALIZE_MINMAX = False
+
 
 def to_numpy(lst):
     return [np.array(x) for x in lst]
@@ -427,9 +429,9 @@ class TrainData_fcc(TrainData):
                 hit_genlink[ei][mask_hits]
             )
             hit_genlink[ei] = clust_id_new
-            print(ei)
-            print(mask_particles.shape, mask_particles)
-            print("partp", part_p[ei].shape, "clust_id", cluster_id)
+            # print(ei)
+            # print(mask_particles.shape, mask_particles)
+            # print("partp", part_p[ei].shape, "clust_id", cluster_id)
             part_p[ei] = part_p[ei][unique_list_particles][mask_particles]
             part_pid[ei] = part_pid[ei][unique_list_particles][mask_particles]
             part_theta[ei] = part_theta[ei][unique_list_particles][mask_particles]
@@ -491,15 +493,18 @@ class TrainData_fcc(TrainData):
         hit_type = self.branchToFlatArrayNumpy(hit_type)
         # convert hit type to onehot
         print("onehot")
-        hit_type_onehot = np.zeros((hit_type.size, 4)).astype(np.float32)  # fix the number of cat
+        hit_type_onehot = np.zeros((hit_type.size, 4)).astype(
+            np.float32
+        )  # fix the number of cat
         print("onehot2")
         print("onehot2", hit_type_onehot.shape, hit_type.shape)
-        hit_type_onehot[:, hit_type.astype(np.int)] = 1.
+        hit_type_onehot[:, hit_type.astype(np.int)] = 1.0
         print("phi")
         hit_phi = self.branchToFlatArrayNumpy(hit_phi)
         # hit_x, hit_y, hit_z = spherical_to_cartesian(
         #     hit_theta, hit_phi, 0, normalized=True
         # )
+
         zerosf = 0.0 * hit_e
         hit_e = np.where(hit_e < 0.0, 0.0, hit_e)
         print("concatenating")
@@ -508,7 +513,9 @@ class TrainData_fcc(TrainData):
                 [
                     hit_e.astype(np.float32),  # 0
                     zerosf.astype(np.float32),  # 1
-                    zerosf.astype(np.float32),  # 2 #! indicator if it is track or not (maybe we can remove this)
+                    zerosf.astype(
+                        np.float32
+                    ),  # 2 #! indicator if it is track or not (maybe we can remove this)
                     zerosf.astype(np.float32),  # 3
                     hit_theta.astype(np.float32),  # 4
                     hit_x.astype(np.float32),  # 5 (5 to 8 are selected as coordinates)
@@ -516,13 +523,15 @@ class TrainData_fcc(TrainData):
                     hit_z.astype(np.float32),  # 7
                     zerosf.astype(np.float32),  # 8
                     hit_t.astype(np.float32),  # 9
-                    hit_type_onehot.astype(np.float32),  # 10 hit type one hot #total input size 12
+                    hit_type_onehot.astype(
+                        np.float32
+                    ),  # 10 hit type one hot #total input size 12
                 ],
                 axis=-1,
             ),
             rs,
             name="recHitFeatures",
-            dtype="float32"
+            dtype="float32",
         )  # TODO: add hit_type
 
         t = {
@@ -592,6 +601,10 @@ class TrainData_fcc(TrainData):
         hit_theta = self.branchToFlatArray(tree["hit_theta"])
         hit_type = self.branchToFlatArray(tree["hit_type"])
 
+        if NORMALIZE_MINMAX:
+            hit_x = normalize_min_max(hit_x, is_z=False)
+            hit_y = normalize_min_max(hit_y, is_z=False)
+            hit_z = normalize_min_max(hit_z, is_z=True)
         zerosf = 0.0 * hit_e
 
         print("hit_e", hit_e)
@@ -706,3 +719,17 @@ def spherical_to_cartesian(theta, phi, r, normalized=False):
     y = r * np.sin(phi) * np.sin(theta)
     z = r * np.cos(phi)
     return x, y, z
+
+
+def normalize_min_max(hit_x, is_z=False):
+    hit_x_ = np.abs(hit_x)
+    min = np.min(hit_x_)
+    max = np.max(hit_x_)
+    min_new_coord = 1 - min / max
+    if is_z:
+        new_hitx = (hit_x - min) / (max - min)
+    else:
+        new_hitx = (
+            min_new_coord * (hit_x - min) / (max - min) + np.sign(hit_x) * min / max
+        )
+    return new_hitx
