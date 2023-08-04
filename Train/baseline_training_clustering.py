@@ -121,7 +121,7 @@ def gravnet_model(
     c_coords = input_list["coords"]
 
     ## build inputs
-    print("INPUTS SHAPE", input_list["coords"].shape, input_list["features"].shape)
+    #print("INPUTS SHAPE", input_list["coords"].shape, input_list["features"].shape)
     x_in = Concatenate()([input_list["coords"], input_list["features"]])
 
     x_in = ScaledGooeyBatchNorm2(
