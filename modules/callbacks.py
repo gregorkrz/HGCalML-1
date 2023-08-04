@@ -17,7 +17,8 @@ from DebugLayers import _DebugPlotBase
 from DeepJetCore import TrainData
 from DeepJetCore.dataPipeline import TrainDataGenerator
 import wandb
-       
+
+
 class plotDuringTrainingBase(PredictCallback):
     def __init__(self,
                  outputfile="",
@@ -71,8 +72,6 @@ class plotClusteringDuringTraining(plotDuringTrainingBase):
             backgather = predicted[self.use_backgather_idx]
             truths = td.createTruthDict(feat)
             
-            
-            
             data = {}
             data.update(feats)
             data.update(truths)
@@ -98,7 +97,7 @@ class plotClusteringDuringTraining(plotDuringTrainingBase):
             
             fig = px.scatter_3d(df, x="recHitX", y="recHitZ", z="recHitY", 
                                 color="truthHitAssignementIdx", size="recHitLogEnergy",
-                                symbol = "recHitID",
+                                symbol="recHitID",
                                 #template='plotly_dark',
                     color_continuous_scale=px.colors.sequential.Rainbow)
             fig.update_traces(marker=dict(line=dict(width=0)))
@@ -295,31 +294,36 @@ class plotEventDuringTraining(plotDuringTrainingBase):
              pred_time, 
              pred_id
             '''
-            td = TrainData_fcc()#contains all dicts
+            td = TrainData_fcc()  # contains all dicts
             #row splits not needed
+            print("PREDICTED:", type(predicted), predicted.keys(), {key: predicted[key].shape for key in predicted.keys()})
+            print("FEATS", len(feat), [i.shape for i in feat])
             feats = td.createFeatureDict(feat,addxycomb=False)
             truths = td.createTruthDict(feat)
-            
+            print("TRUTHS", truths.keys(), {key: truths[key].shape for key in truths.keys()})
+            #import pdb
+            #pdb.set_trace()
+
             predBeta = predicted['pred_beta']
-            
-            print('>>>> plotting cluster coordinates... average beta',np.mean(predBeta), ' lowest beta ', 
+
+            print('>>>> plotting cluster coordinates... average beta',np.mean(predBeta), ' lowest beta ',
                   np.min(predBeta), 'highest beta', np.max(predBeta))
-            
-            
+
+
             #for later
             predEnergy = predicted['pred_energy_corr_factor']
             predX = predicted['pred_pos'][:,0:1]
             predY = predicted['pred_pos'][:,1:2]
             predT = predicted['pred_time']
             predD = predicted['pred_dist']
-            
+
             data = {}
             data.update(feats)
             data.update(truths)
-            
+
             predCCoords = predicted['pred_ccoords']
-            
-            
+
+
             data['recHitLogEnergy'] = np.log(data['recHitEnergy']+1)
             data['predBeta'] = predBeta
             data['predBeta+0.05'] = predBeta+0.05 #so that the others don't disappear
@@ -330,27 +334,30 @@ class plotEventDuringTraining(plotDuringTrainingBase):
             data['predD']=predD
             data['(predBeta+0.05)**2'] = data['predBeta+0.05']**2
             data['(thresh(predBeta)+0.05))**2'] = np.where(predBeta>self.beta_threshold ,data['(predBeta+0.05)**2'], 0.)
-            
+
             if not predCCoords.shape[-1] == 3:
                 self.projection_plot(data, predCCoords)
                 return
-            
-            
+
+
             data['predCCoordsX'] = predCCoords[:,0:1]
             data['predCCoordsY'] = predCCoords[:,1:2]
             data['predCCoordsZ'] = predCCoords[:,2:3]
-            
-            from globals import cluster_space as cs 
-            removednoise = np.logical_and(data["predCCoordsX"] == cs.noise_coord, 
-                                          data["predCCoordsY"] == cs.noise_coord)
-            removednoise = np.logical_and(data["predCCoordsZ"] == cs.noise_coord, 
-                                          removednoise)
-            removednoise = np.where(removednoise[:,0],False,True)
-            #remove removed noise
-            
-            for k in data.keys():
-                data[k] = data[k][removednoise]
-            
+
+            #from globals import cluster_space as cs
+            #removednoise = np.logical_and(data["predCCoordsX"] == cs.noise_coord,
+            #                              data["predCCoordsY"] == cs.noise_coord)
+            #removednoise = np.logical_and(data["predCCoordsZ"] == cs.noise_coord,
+            #                              removednoise)
+            #removednoise = np.where(removednoise[:,0], False, True)
+            #for key in data:
+            #    print(key)
+            #    print("---------*********", key, data[key].shape, cs.noise_coord.shape)
+#           # remove removed noise
+            #for k in data.keys():
+            #    #print(k)
+            #    #print("---------", data[k].shape, removednoise.shape)
+            #    data[k] = data[k]#[removednoise]
             keys = []
             for k in data:
                 for s in range(data[k].shape[1]):
@@ -358,61 +365,61 @@ class plotEventDuringTraining(plotDuringTrainingBase):
                         keys.append(k + "_" + str(s))
                     else:
                         keys.append(k)
-            print(len(data), data.keys(), np.concatenate([data[k] for k in data],axis=1).shape, [data[k].shape for k in data])
-            df = pd.DataFrame (np.concatenate([data[k] for k in data],axis=1), columns = keys)
-            
+            print("...___...___", len(data), data.keys(), [data[k].shape for k in data])
+            df = pd.DataFrame(np.concatenate([data[k] for k in data], axis=1), columns=keys)
             #fig = px.scatter_3d(df, x="recHitX", y="recHitZ", z="recHitY", color="truthHitAssignementIdx", size="recHitLogEnergy")
             #fig.write_html(self.outputfile + str(self.keep_counter) + "_truth.html")
             shuffle_truth_colors(df)
             #now the cluster indices
-            
-            hover_data=['predBeta','predD','predEnergy','truthHitAssignedEnergies',
-                        'predT','truthHitAssignedT',
+
+            hover_data = ['predBeta', 'predD', 'predEnergy', 'truthHitAssignedEnergies',
+                        'predT', 'truthHitAssignedT',
                         'predX', 'truthHitAssignedX',
                         'predY', 'truthHitAssignedY',
                         'truthHitAssignementIdx']
-            
-            fig = px.scatter_3d(df, x="predCCoordsX", y="predCCoordsY", z="predCCoordsZ", 
-                                color="truthHitAssignementIdx", size="recHitLogEnergy",
-                                symbol = "recHitID",
-                                hover_data=hover_data,
-                                template='plotly_dark',
-                    color_continuous_scale=px.colors.sequential.Rainbow)
+
+            fig = px.scatter_3d(df, x="predCCoordsX", y="predCCoordsY", z="predCCoordsZ",
+                                color="truthHitAssignementIdx",
+                                color_continuous_scale=px.colors.sequential.Rainbow)#, size="recHitLogEnergy",
+                                #symbol="recHitID",
+                                #hover_data=hover_data,
+                                #template='plotly_dark',
+                                #)
             fig.update_traces(marker=dict(line=dict(width=0)))
             ccfile = self.outputfile + str(self.keep_counter) + "_ccoords.html"
             fig.write_html(ccfile)
-            
-            
+
+
             if self.publish is not None:
                 publish(ccfile, self.publish)
-            
-            fig = px.scatter_3d(df, x="predCCoordsX", y="predCCoordsY", z="predCCoordsZ", 
+
+            fig = px.scatter_3d(df, x="predCCoordsX", y="predCCoordsY", z="predCCoordsZ",
                                 color="truthHitAssignementIdx", size="(predBeta+0.05)**2",
                                 hover_data=hover_data,
                                 symbol = "recHitID",
                                 template='plotly_dark',
-                    color_continuous_scale=px.colors.sequential.Rainbow)
+                                color_continuous_scale=px.colors.sequential.Rainbow)
             fig.update_traces(marker=dict(line=dict(width=0)))
             ccfile = self.outputfile + str(self.keep_counter) + "_ccoords_betasize.html"
             fig.write_html(ccfile)
-            
-            
+
+
             if self.publish is not None:
                 publish(ccfile, self.publish)
-                
+
             # thresholded
             fig = px.scatter_3d(df, x="recHitX", y="recHitZ", z="recHitY",
                                 color="truthHitAssignementIdx", size="recHitLogEnergy",
                                 symbol = "recHitID",
-                                hover_data=['predBeta','predEnergy', 'predX', 'predY', 'truthHitAssignementIdx', 
+                                hover_data=['predBeta','predEnergy', 'predX', 'predY', 'truthHitAssignementIdx',
                                             'truthHitAssignedEnergies', 'truthHitAssignedX','truthHitAssignedY'],
                                 template='plotly_dark',
-                    color_continuous_scale=px.colors.sequential.Rainbow)
+                                color_continuous_scale=px.colors.sequential.Rainbow)
             fig.update_traces(marker=dict(line=dict(width=0)))
             ccfile = self.outputfile + str(self.keep_counter) + "_truth.html"
             fig.write_html(ccfile)
-            
-            
+
+
             if self.publish is not None:
                 publish(ccfile, self.publish)
             
@@ -669,10 +676,9 @@ class NanSweeper(tf.keras.callbacks.Callback):
             
             
         self.saved_weights = nw
-        
-        
-        
-        
+
+
+
 class DebugPlotRunner(tf.keras.callbacks.Callback):
     '''
     Slight extension of the normal checkpoint to multiple checkpoints per epoch

@@ -154,7 +154,8 @@ def gravnet_model(Inputs, td, debug_outdir=None, plot_debug_every=10):
     ############################################################################
 
     pre_selection = td.interpretAllModelInputs(Inputs, returndict=True)
-
+    tf.print("INPUTS SHAPE", {key: Inputs[key].shape for key in Inputs})
+    tf.print("PRE-SELECTION SHAPE", {key: Inputs[key].shape for key in pre_selection})
     pre_selection = condition_input(pre_selection, no_scaling=True)
     trans, pre_selection = tiny_pc_pool(
         pre_selection,
@@ -351,7 +352,7 @@ def gravnet_model(Inputs, td, debug_outdir=None, plot_debug_every=10):
             'no_noise_rs': trans['rs_down'], #unclear what that actually means?
             # 'noise_backscatter': pre_selection['noise_backscatter'],
             }
-
+    tf.print("MODEL OUTPUTS SHAPE", {k: v.shape for k, v in model_outputs.items()})
     return DictModel(inputs=Inputs, outputs=model_outputs)
 
 
@@ -359,7 +360,7 @@ import training_base_hgcal
 train = training_base_hgcal.HGCalTraining(parser=parser)
 
 args = train.args
-learningrate=args.lr
+learningrate = args.lr
 print("LR=", learningrate)
 
 if args.run_name != "":

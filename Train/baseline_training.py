@@ -47,7 +47,7 @@ parser.add_argument("--lr", "-lr", help="learning rate", default=0.0001, type=fl
 loss_options={
     # here and in the following energy = momentum
     'energy_loss_weight': 0.,
-    'q_min': 3.0,
+    'q_min': 1.0,
     # addition to original OC, adds average position for clusterin
     # usually 0.5 is a reasonable value to break degeneracies 
     # and keep training smooth enough
