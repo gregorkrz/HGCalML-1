@@ -10,7 +10,7 @@ import pickle
 import pandas as pd
 import pdb
 
-NORMALIZE_MINMAX = False
+NORMALIZE_MINMAX = True
 
 
 def to_numpy(lst):
@@ -722,14 +722,6 @@ def spherical_to_cartesian(theta, phi, r, normalized=False):
 
 
 def normalize_min_max(hit_x, is_z=False):
-    hit_x_ = np.abs(hit_x)
-    min = np.min(hit_x_)
-    max = np.max(hit_x_)
-    min_new_coord = 1 - min / max
-    if is_z:
-        new_hitx = (hit_x - min) / (max - min)
-    else:
-        new_hitx = (
-            min_new_coord * (hit_x - min) / (max - min) + np.sign(hit_x) * min / max
-        )
+    # 3330 is the outer radius of the HcalBarrel
+    new_hitx = hit_x / 3330
     return new_hitx
