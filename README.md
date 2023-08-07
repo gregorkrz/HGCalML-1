@@ -82,3 +82,17 @@ predict_hgcal.py <training_output_path>/KERAS_model.h5  <path_to_dataset>/testin
 
 To analyse the prediction, use the `analyse_hgcal_predictions.py` script.
 
+
+To add wandb
+===========
+```
+pip3 install wandb --target=/yourpath/python_pkgs_hgcal
+```
+you also need to add these paths to source env:
+```
+export PATH=$PATH:/yourpath/python_pkgs_hgcal
+export PYTHONPATH=$PYTHONPATH:/yourpath/python_pkgs_hgcal/
+
+export LC_ALL=C.UTF-8
+export LANG=C.UTF-8
+```
