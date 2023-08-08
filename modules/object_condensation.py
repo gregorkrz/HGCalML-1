@@ -185,6 +185,7 @@ class Basic_OC_per_sample(object):
     
     def calc_dsq_att(self):
         x_k_e = tf.expand_dims(self.x_k,axis=1)
+        #x_k_e = tf.stop_gradient(x_k_e)
         dsq_k_m = tf.reduce_sum((self.x_k_m - x_k_e)**2, axis=-1, keepdims=True) #K x V-obj x 1
         return dsq_k_m
     

@@ -219,7 +219,9 @@ from GravNetLayersRagged import XYZtoXYZPrime, CondensatesToPseudoRS, ReversePse
 from LossLayers import LLGoodNeighbourHood, LLOCThresholds, LLKnnPushPullObjectCondensation, LLKnnSimpleObjectCondensation
 from LossLayers import NormaliseTruthIdxs
 #also move this to the standard pre-selection  model
-def condition_input(orig_inputs, no_scaling=False):
+def condition_input(orig_inputs, 
+                    no_scaling=False,
+                    no_prime=False):
 
     if not 't_spectator_weight' in orig_inputs.keys(): #compat layer
         orig_t_spectator_weight = CreateTruthSpectatorWeights(threshold=5.,minimum=1e-1,active=True
@@ -251,7 +253,10 @@ def condition_input(orig_inputs, no_scaling=False):
         orig_inputs['features'] = processed_features
 
         #create starting point for cluster coords
-        orig_inputs['prime_coords'] = XYZtoXYZPrime()(SelectFeatures(5, 8)(orig_inputs['orig_features']))
+        if no_prime:
+            orig_inputs['prime_coords'] = SelectFeatures(5, 8)(orig_inputs['orig_features'])
+        else:
+            orig_inputs['prime_coords'] = XYZtoXYZPrime()(SelectFeatures(5, 8)(orig_inputs['orig_features']))
 
     return orig_inputs
 

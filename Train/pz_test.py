@@ -24,7 +24,7 @@ from Layers import RaggedGravNet, RaggedGlobalExchange
 from Layers import DistanceWeightedMessagePassing
 from Layers import DictModel, SphereActivation, Multi
 from Layers import CastRowSplits, PlotCoordinates
-from Layers import LLFullObjectCondensation as  LLExtendedObjectCondensation
+from Layers import LLExtendedObjectCondensation
 from Layers import ScaledGooeyBatchNorm2, Sqrt
 from Layers import LLFillSpace, SphereActivation
 from Regularizers import AverageDistanceRegularizer
@@ -59,25 +59,26 @@ BATCHNORM_OPTIONS = {
     }
 
 # Configuration for model
-PRESELECTION_PATH = os.getenv("HGCALML")+'/models/tiny_pc_pool/model_no_nan.h5'#model.h5'
+PRESELECTION_PATH = os.getenv("HGCALML")+'/models/tiny_pc_pool/model.h5'#model.h5'
 
 # Configuration for plotting
 RECORD_FREQUENCY = 20
-PLOT_FREQUENCY = 10 #plots every 200 batches -> roughly 3 minutes
+PLOT_FREQUENCY = 30 #plots every 200 batches -> roughly 3 minutes
 PUBLISHPATH = "jkiesele@lxplus.cern.ch:~/Cernbox/www/files/temp/June2023/"
 #PUBLISHPATH = None
 
+
 # Configuration for training
 DENSE_ACTIVATION='elu' #layernorm #'elu'
-LEARNINGRATE = 5e-3
-LEARNINGRATE2 = 1e-3
+LEARNINGRATE = 2e-3
+LEARNINGRATE2 = 3e-4
 LEARNINGRATE3 = 1e-4
-NBATCH = 200000#200000
+NBATCH = 300000#200000
 DENSE_REGULARIZER = tf.keras.regularizers.L2(l2=1e-5)
 DENSE_REGULARIZER = None
 
 # Configuration of GravNet Blocks
-N_NEIGHBOURS = [256, 256, 256]
+N_NEIGHBOURS = [256, 256, 256, 256]
 TOTAL_ITERATIONS = len(N_NEIGHBOURS)
 N_CLUSTER_SPACE_COORDINATES = 3
 N_GRAVNET = 3
@@ -161,10 +162,10 @@ def gravnet_model(Inputs, td, debug_outdir=None,
         x = Dense(64,activation=DENSE_ACTIVATION,
             kernel_regularizer=DENSE_REGULARIZER)(x)
           
-        x = ScaledGooeyBatchNorm2(**BATCHNORM_OPTIONS)(x)
         #x = Dropout(0.1)(x) 
         
         x = Concatenate()([c_coords,x]) 
+        x = ScaledGooeyBatchNorm2(**BATCHNORM_OPTIONS)(x)
 
         xgn, gncoords, gnnidx, gndist = RaggedGravNet(
             n_neighbours=N_NEIGHBOURS[i],
