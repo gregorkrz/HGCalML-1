@@ -330,6 +330,71 @@ class LLDummy(LossLayerBase):
         return tf.reduce_mean(inputs)
 
 
+class LLRegulariseGravNetSpace(LossLayerBase):
+    '''
+    Regularisation layer (not truth dependent)
+    Regularises the GravNet space to have similar distances than the physical space
+
+    Inputs:
+    - GravNet Distances
+    - physical coordinates (prime_coords)
+    - neighbour indices
+
+    Outputs:
+    - GravNet Distances (unchanged)
+    '''
+
+
+    def __init__(self, **kwargs):
+
+        super(LLRegulariseGravNetSpace, self).__init__(**kwargs)
+        print('INFO: LLRegulariseGravNetSpace: this is actually a regulariser: move to right file soon.')
+
+    def loss(self, inputs):
+        assert len(inputs) == 3
+        gndist, in_coords, nidx = inputs
+
+
+        if self.project:
+            in_coords = in_coords / tf.sqrt( tf.reduce_sum(in_coords**2, axis=1, keepdims=True) + 1e-6)
+        else:
+            # this is prime-coords, so x', y', z', where z is projected towards the beamspot
+            # so we can just remove it
+            in_coords = in_coords[:,:,1:]
+
+        ncoords = SelectWithDefault(nidx, in_coords, -1e6)
+        dist = tf.reduce_sum( (in_coords[:,tf.newaxis,:] - ncoords)**2, axis=2 ) # V x K+1
+        dist = tf.where(ncoords[:,:,0] < -1e5, 0., dist)#mask masked again
+        dist = tf.sqrt(dist + 1e-6)
+        dist = dist / (tf.reduce_mean(dist, axis=1, keepdims=True)+1e-4)
+        gndist = tf.sqrt(gndist + 1e-6)
+        gndist = gndist / (tf.reduce_mean(gndist, axis=1, keepdims=True)+1e-4)
+        lossval = tf.reduce_mean((dist - gndist)**2)
+
+        return lossval
+
+
+    def loss(self, inputs):
+        assert len(inputs) == 3
+        gndist, in_coords, nidx = inputs
+
+        # this is prime-coords, so x', y', z', where z is projected towards the beamspot
+        # so we can just remove it
+        in_coords = in_coords[:,:2]
+
+        ncoords = SelectWithDefault(nidx, in_coords, -1e6)
+        dist = tf.reduce_sum( (in_coords[:,tf.newaxis,:] - ncoords)**2 , axis = 2) # V x K+1
+
+        dist = tf.where(ncoords[:,:,0] < -1e5, 0., dist)#mask masked again
+        dist = dist / (tf.reduce_mean(dist, axis=1, keepdims=True)+1e-4)
+
+        gndist = gndist / (tf.reduce_mean(gndist, axis=1, keepdims=True)+1e-4)
+
+        lossval = tf.reduce_mean((dist - gndist)**2)
+
+        return lossval
+
+
 class LLValuePenalty(LossLayerBase):
 
     def __init__(self,
@@ -1930,6 +1995,7 @@ class LLBasicObjectCondensation(LossLayerBase):
                  s_b=1.,
                  use_average_cc_pos=0.5,
                  implementation = 'std',
+                 global_weight=False,
                  **kwargs):
 
         assert implementation == 'std' or \
@@ -1950,9 +2016,10 @@ class LLBasicObjectCondensation(LossLayerBase):
         self.oc_loss_object = OC_loss(
             loss_impl = impl,
             q_min= q_min,
-                 s_b=s_b,
-                 use_mean_x=use_average_cc_pos,
-                 spect_supp=1.
+            s_b=s_b,
+            use_mean_x=use_average_cc_pos,
+            spect_supp=1.,
+            global_weight=global_weight, 
             )
 
 
@@ -2047,6 +2114,7 @@ class LLFullObjectCondensation(LossLayerBase):
                  dynamic_payload_scaling_onset=-0.005,
                  beta_push=0.,
                  implementation = '',
+                 global_weight=False,
                  **kwargs):
         """
         Read carefully before changing parameters
