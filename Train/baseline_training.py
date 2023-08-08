@@ -80,7 +80,7 @@ do_presel = True
 PRESELECTION_PATH = os.getenv("HGCALML")+'/models/tiny_pc_pool/model.h5'
 
 #iterations of gravnet blocks
-n_neighbours=[256,256,256,256]
+n_neighbours=[64,64]
 
 # 3 is a bit low but nice in the beginning since it can be plotted
 n_cluster_space_coordinates = 3
